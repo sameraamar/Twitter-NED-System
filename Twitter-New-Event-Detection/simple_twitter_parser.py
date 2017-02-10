@@ -53,14 +53,22 @@ puncchars = list(string.punctuation)
 eng_stopwords = set(stopwords.words('english'))
 ily_stopwords = set(stopwords.words('italian'))
 
+# -*- coding: utf-8 -*-
+def isEnglish(s):
+    try:
+        s.encode('ascii')
+    except Exception:
+        return False
+    else:
+        return True
 
 def tokenize(s):
     return tokens_re.findall(s)
 
 def clean_spaces(s):
-    return preprocess(s, emoicons=False, numbers=False, mentions=False, url=True, hashtag=True, punctuation=False, return_text=False, stop_words=True)
+    return preprocess(s, emoicons=False, numbers=True, mentions=False, url=True, hashtag=True, punctuation=False, return_text=False, stop_words=True, ignore_retweet=True, english_only=True)
 
-def preprocess(s, lowercase=True, emoicons=True, numbers=True, mentions=True, url=True, hashtag=True, punctuation=True, return_text=False, stop_words=True):
+def preprocess(s, lowercase=True, emoicons=True, numbers=True, mentions=True, url=True, hashtag=True, punctuation=True, return_text=False, stop_words=True, ignore_retweet=False, english_only=False):
     tokens = tokenize(s)
     if lowercase:
         tokens = [token if emoticon_re.search(token) else token.lower() for token in tokens]
@@ -68,6 +76,10 @@ def preprocess(s, lowercase=True, emoicons=True, numbers=True, mentions=True, ur
 
     tmp = []
     for token in tokens:
+
+        if english_only and not isEnglish(token):
+            continue
+
         if not emoicons and emoticon_re.search(token):
             continue
         if not punctuation and token in puncchars:
@@ -85,9 +97,18 @@ def preprocess(s, lowercase=True, emoicons=True, numbers=True, mentions=True, ur
         if html_re.search(token):
             continue
         if token == 'rt' or token == 'RT' and len(tmp)==0:
+            if ignore_retweet:
+                token = 'rt'
+                break
+
             continue
+
         
         tmp.append(token)
+
+    if token == 'rt':
+        tmp = []
+
     tokens = tmp
     
     if return_text:
@@ -103,7 +124,8 @@ if __name__ == '__main__':
     http://example.com #NLP""" ,
             "Ayyy you from my hood what school you went to?  &gt; Wanna show you how much I'm dedicated to you.   ",
             'RT @kumailn: Wanna go see the Kevin James movie just so at the start' \
-            ' I can yell out super loud "Here comes the here comes the BOOM!" The ...' ]
+            ' I can yell out super loud "Here comes the here comes the BOOM!" The ...' ,
+              "RT @Sherm_YG: \ue32e#90sBabyFollowTrain 1.\ue232\ue233\ue235\ue234\ue236\ue237\ue238\ue239 Retweet this\ue420 2. I'll \ue536\ue201You 3. You Will\ue201\ue115\ue330 Back 4. Or Get Unfollowed\ue00d\ue333\ue023 5. FAV for a S/O \ue00e ..."]
 
 
     for tweet in tweets:

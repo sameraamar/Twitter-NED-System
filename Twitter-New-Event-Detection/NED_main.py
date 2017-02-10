@@ -5,7 +5,7 @@ import os
 import sys
 import os.path
 import time
-from action_listener import MongoDBStreamer, TwitterTextListener
+from action_listener import MongoDBStreamer, TwitterTextListener, TextGZipStreameSet
 from session import Session, MongoDBHandler
 from simplelogger import simplelogger
 from NED import NED_LSH_model
@@ -18,42 +18,44 @@ def memory_usage_psutil():
     return mem
 
 
-def init_mongodb(k, maxB, tables, threshold, max_docs, page, recent_documents, dimension, max_thread_delta_time, tfidf_mode = True, tracker=False):
+def init_mongodb(k, maxB, tables, threshold, max_docs, page, recent_documents, dimension, max_thread_delta_time, tfidf_mode = True, tracker=False, profiling_idx=0):
     print('Running LSH with {0} tweets ..... '.format(max_docs), end='')
 
 
     # %%
     session = Session(tracker_on=tracker)
 
-    log_filename = session.temp_folder() + '/{0:07d}_docs_round_{1:03d}.log'.format(max_docs, page)
+    session.generate_temp_folder('LSH', suffix='_'+str(max_docs))
 
-    session.init_logger(filename=log_filename, std_level=simplelogger.INFO, file_level=simplelogger.DEBUG, profiling=True)
+    log_filename = session.get_temp_folder() + '/log_{0:07d}_docs.log'.format(max_docs)
+
+    session.init_logger(filename=log_filename, std_level=simplelogger.INFO, file_level=simplelogger.DEBUG, profiling=False)
     # logger.init(filename=log_filename, std_level=simplelogger.INFO, file_level=simplelogger.DEBUG, profiling=False)
-
-    mongodb_url= 'mongodb://localhost:27017'
-    dbname = 'output'
-    m = MongoDBHandler(session, mongodb_url, dbname)
-    session.init_output(m)
 
     # %%
     lshmodel = NED_LSH_model()
     lshmodel.init(session, k, tables, max_bucket_size=maxB, dimension=dimension, threshold=threshold,
-                  recent_documents=recent_documents, tfidf_mode = tfidf_mode, max_thread_delta_time=max_thread_delta_time)
+                  recent_documents=recent_documents, tfidf_mode = tfidf_mode, max_thread_delta_time=max_thread_delta_time,
+                  profiling_idx=profiling_idx)
 
     session.setLSHModel(lshmodel)
 
     return session, lshmodel
 
 
-def execute(session, lshmodel, page, max_docs, host, port, db, collection, max_threads):
+def execute(session, lshmodel, page, max_docs, host, port, db, collection, max_threads, folder='.', filenames=None):
     session.logger.entry("main.execute")
 
 
     # streamer = TextStreamer(logger)
     # streamer.init('C:\data\_Personal\DataScientist\datasets\Italy1.json')
 
-    streamer = MongoDBStreamer(session)
-    streamer.init(host, port, db, collection, offset=int(page * max_docs))
+    #TextGZipStreameSet
+    if filenames:
+        streamer = TextGZipStreameSet(session, folder, filenames)
+    else:
+        streamer = MongoDBStreamer(session)
+        streamer.init(host, port, db, collection, offset=int(page * max_docs))
 
     listener = TwitterTextListener(session)
     listener.init(lshmodel, max_docs)
@@ -66,7 +68,7 @@ def execute(session, lshmodel, page, max_docs, host, port, db, collection, max_t
     session.logger.info('Processed {0} text documents. (time delta: {1} min)'.format(nn, delta/60.0))
 
     # %%
-    threads_filename = session.temp_folder() + '/{0:07d}_docs_round_{1:02d}_threads.txt'.format(max_docs, page)
+    threads_filename = session.get_temp_folder() + '/threads_{0:07d}_docs.txt'.format(max_docs)
 
     lshmodel.dumpThreads(threads_filename.replace('.txt', '1.txt'), max_threads)
     lshmodel.dumpThreads2(threads_filename.replace('.txt', '2.txt'), max_threads)
@@ -80,7 +82,7 @@ def execute(session, lshmodel, page, max_docs, host, port, db, collection, max_t
 def printInfo(session, lshmodel, measured_time, count):
     session.logger.info('print profiling!')
 
-    temp = session.temp_folder()
+    temp = session.get_temp_folder()
     session.logger.profiling_dump(path=temp, avg_base=count)
     msg = 'done with {0:.2f} seconds (= {1:.2f} minutes).'.format(measured_time, measured_time / 60)
     print(msg)
@@ -88,7 +90,7 @@ def printInfo(session, lshmodel, measured_time, count):
 
 
     # %%
-    session.logger.info('Done ({0} documents processed, {1}).'.format(max_docs, session.temp_folder()))
+    session.logger.info('Done ({0} documents processed, {1}).'.format(max_docs, session.get_temp_folder()))
     session.logger.close()
 
     # input('Round {} is done. Press Enter...'.format(r))
@@ -100,30 +102,37 @@ if __name__ == '__main__':
 
     k = 6
     maxB = 100  # should be less than 0.5 of max_docs/(2^k)
-    tables = 2
+    tables = 1
     threshold = 0.5
     # %%
     max_threads = 2000
-    max_docs = 500
+    max_docs = 2000000
     recent_documents = 0
     max_thread_delta_time = 3600  # 1 hour delta maximum
 
-    dimension = 2000
+    dimension = 50000
     tfidf_mode = True
     # %%
+
     # mongodb
-    host = 'localhost'
+    host = 'localhost' #'192.168.1.102'
     port = 27017
     dbname = 'events2012'  # 'petrovic'
     dbcoll = 'posts'  # 'relevance_judgments'
-    #db = 'test'
-    #collection = 'test'
+    #dbname = 'test'
+    #dbcoll = 'test'
+
+    folder = 'C:\\data\\events_db\\petrovic'
+    filenames = ['petrovic_00000000.gz', 'petrovic_01000000.gz', 'petrovic_02000000.gz', 'petrovic_03000000.gz', 'petrovic_04000000.gz',
+                 'petrovic_05000000.gz', 'petrovic_06000000.gz', 'petrovic_07000000.gz', 'petrovic_08000000.gz', 'petrovic_09000000.gz',
+                 'petrovic_10000000.gz', 'petrovic_11000000.gz', 'petrovic_12000000.gz']
 
     min_rounds = 0
     max_rounds = 10
+    profiling_idx = 5000
     page = 0
 
-    tracker = True
+    tracker = False
 
     lsh = {
         'title': 'LSH parameters',
@@ -166,10 +175,17 @@ if __name__ == '__main__':
         min_rounds = int(sys.argv[2])
         max_rounds = int(sys.argv[3])
 
-    session, lshmodel = init_mongodb(k, maxB, tables, threshold, max_docs, page, recent_documents=recent_documents, dimension=dimension, max_thread_delta_time=max_thread_delta_time, tfidf_mode = tfidf_mode,  tracker=tracker)
+    session, lshmodel = init_mongodb(k, maxB, tables, threshold, max_docs, page, recent_documents=recent_documents,
+                                     dimension=dimension, max_thread_delta_time=max_thread_delta_time, tfidf_mode = tfidf_mode,
+                                     tracker=tracker, profiling_idx=profiling_idx)
     session.logger.info(json.dumps(parameters, indent=4, sort_keys=True))
 
-    preformance_file = session.temp_folder() + '/../performance.txt'
+    #mongodb_url= 'mongodb://{0}:{1}'.format(host, port)
+    #dbname = 'output'
+    #m = MongoDBHandler(session, mongodb_url, dbname)
+    #session.init_output(m)
+
+    preformance_file = session.get_temp_folder() + '/../performance.txt'
 
     newFile = True
     if os.path.isfile(preformance_file ):
@@ -180,7 +196,7 @@ if __name__ == '__main__':
         file.write('max_docs\tseconds\tminutes\tusage\n')
 
     starttime = time.time()
-    execute(session, lshmodel, page, max_docs, host, port, dbname, dbcoll, max_threads)
+    execute(session, lshmodel, page, max_docs, host, port, dbname, dbcoll, max_threads, folder=folder, filenames=filenames)
     measured_time = time.time() - starttime
     usage_psutil = memory_usage_psutil()
 

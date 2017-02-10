@@ -31,6 +31,7 @@ lsh = {
           'tables' :    { 'value' : 64, 'label' : 'Number of Hashtables' } ,
           'tfidf' :    { 'value' : 'True', 'label' : 'TFIDF?' } ,
           'run' :       {'value' : 0, 'label' : 'Forground'}
+
       }
 
 thread = {
@@ -39,8 +40,9 @@ thread = {
           'page' :{ 'value' : 0, 'label' : 'Input Documents Page' },
           'recent_documents' : { 'value' : 1000, 'label' : 'Search Recent Documents' },
           'max_threads' : { 'value' : 2000, 'label' : 'Max Threads' },
-          'threshold' : { 'value' : 0.6, 'label' : 'Threshold' }
-         }      
+          'threshold' : { 'value' : 0.6, 'label' : 'Threshold' },
+           'max_thread_delta_time': {'value': 3600, 'label': 'Thread Closes after? (sec)'}
+}
 
 mongodb = {
           'title' : 'Mongo DB',
@@ -49,12 +51,17 @@ mongodb = {
           'dbhost' : { 'value' : 'localhost', 'label' : 'Mongo DB Host' },
           'dbport' : { 'value' : 27017, 'label' : 'Mongo DB Port' }
           }
-          
+
+general = {
+            'tracker': {'value': 'False', 'label': 'Tracker Flag (T/F)'}
+        }
+
 parameters = {
               'lsh'     : lsh ,
               'thread'  : thread ,
-              'mongodb' : mongodb  
-             }
+              'mongodb' : mongodb,
+              'general' : general
+            }
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -139,6 +146,8 @@ def lsh_run(bg=False):
     page =  request.args.get('page', 0, type=int)
 
     tfidf_mode = request.args.get('tfidf', 'True', type=str)
+    tracker = request.args.get('tracker', 'False', type=str)=='True'
+    max_thread_delta_time = request.args.get('max_thread_delta_time', 3600, type=int)
 
     #save to database
     #timestamp = time.time()
@@ -162,7 +171,8 @@ def lsh_run(bg=False):
     else:
         tfidf_mode = False
     print(">>>>>>>>>>>>>>>>>>>>>>> TFIDF: ", tfidf_mode)
-    model = ned.init_mongodb(k, maxB, tables, threshold, max_docs, page, recent_documents, dimension, tfidf_mode=tfidf_mode)
+    #model = ned.init_mongodb(k, maxB, tables, threshold, max_docs, page, recent_documents, dimension, tfidf_mode=tfidf_mode)
+    session, model = ned.init_mongodb(k, maxB, tables, threshold, max_docs, page, recent_documents=recent_documents, dimension=dimension, max_thread_delta_time=max_thread_delta_time, tfidf_mode=tfidf_mode, tracker=tracker)
     coll.update_one({ '_id': run_id }, 
                     { '$set': {
                                'status': 'Running'
@@ -171,17 +181,18 @@ def lsh_run(bg=False):
     
     if bg == True:
         invokes = []
-        invokes.append( (execute, model, page, max_docs, dbhost, dbport, dbname, dbcoll, max_threads, coll, run_id, params) )
+        invokes.append( (execute, session, model, page, max_docs, dbhost, dbport, dbname, dbcoll, max_threads, coll, run_id, params) )
         multirun.run_bg(invokes)
         return
-    return execute(model, page, max_docs, dbhost, dbport, dbname, dbcoll, max_threads, coll, run_id, params)
+    return execute(session, model, page, max_docs, dbhost, dbport, dbname, dbcoll, max_threads, coll, run_id, params)
 
 
-def execute(model, page, max_docs, dbhost, dbport, dbname, dbcoll, max_threads, coll, run_id, params):    
+def execute(session, model, page, max_docs, dbhost, dbport, dbname, dbcoll, max_threads, coll, run_id, params):
     threads = tables = {}
     print ( page, max_docs, dbhost, dbport, dbname, dbcoll, max_threads, coll, run_id, params )
     try:
-        ned.execute(model, page, max_docs, dbhost, dbport, dbname, dbcoll, max_threads)
+        #ned.execute(model, page, max_docs, dbhost, dbport, dbname, dbcoll, max_threads)
+        ned.execute(session, model, page, max_docs, dbhost, dbport, dbname, dbcoll, max_threads)
             
         threads, tables = model.jsonify(max_threads)
         coll.update_one({ '_id': run_id }, 

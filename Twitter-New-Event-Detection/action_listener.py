@@ -5,6 +5,7 @@ from simple_twitter_parser import preprocess, clean_spaces
 
 import numpy as np
 import time, json
+import gzip
 
 class Listener:
     session = None
@@ -45,8 +46,8 @@ class Action:
 class TextFileStreamer(Action):
     source = None
 
-    def init(self, filename):
-        super(self.__class__, self).__init__()
+    def __init__(self, session, filename):
+        super(self.__class__, self).__init__(session)
         self.source = open(filename, 'r')
 
     def start(self):
@@ -70,6 +71,51 @@ class TextFileStreamer(Action):
                 # time controller
 
         self.session.logger.info('TextStreamer is shutting down')
+
+
+class TextGZipStreameSet(Action):
+    source = None
+    i = 0
+    filenames = []
+    folder = '.'
+
+    def __init__(self, session, folder, filenames):
+        super(self.__class__, self).__init__(session)
+        self.filenames = filenames
+        self.folder = folder
+
+
+    def start(self):
+        stop = False
+        for fname in self.filenames:
+            self.source = gzip.open(self.folder + '/' + fname, 'rt', encoding='utf-8')
+
+            self.session.logger.info('Loading file {0}'.format(fname))
+            for line in self.source:
+                if line.strip() == '':
+                    continue
+
+                # json
+                data = json.loads(line)
+                # convert to text
+                created_at = data['created_at']
+
+                itemTimestamp = time.mktime(time.strptime(created_at, "%a %b %d %H:%M:%S +0000 %Y"))
+                data['timestamp'] = itemTimestamp
+
+                # publish to listeners
+                if not self.publish(data):
+                    stop = True
+                    break
+
+            self.source.close()
+
+            if stop:
+                break
+
+                    # time controller
+
+        self.session.logger.info('GZip Streamer is shutting down')
 
 
 
@@ -97,13 +143,15 @@ class MongoDBStreamer(Action):
 
         basetime = lasttime = time.time()
 
-        skip = 0
+        count = 0
         done = False
+        three_errors = 3
         while not done:
-            cursor = self.dbcoll.find({'status' : 'Loaded'})
+            #cursor = self.dbcoll.find({'status' : 'Loaded'})
+            cursor = self.dbcoll.find({})
             cursor.sort("_id", pymongo.ASCENDING)
-            cursor.skip(skip)
-            print('Query on mongodb performed (skipped {0} documents)'.format(skip))
+            cursor.skip(count)
+            print('Query on mongodb performed (skipped {0} documents)'.format(count))
             printme = True
             try:
                 for item in cursor:
@@ -111,39 +159,40 @@ class MongoDBStreamer(Action):
                         self.session.logger.info('New item is: {0}.'.format(item))
                         printme = False
 
-                    skip += 1
+                    count += 1
                     lasttime = time.time()
                     data = item.get('json', None)
-                    if data == None:
-                        continue
+                    if data != None:
+                        # data = json.loads(data)
+                        # convert to text
+                        created_at = data['created_at']
 
-                    # data = json.loads(data)
-                    # convert to text
-                    created_at = data['created_at']
+                        itemTimestamp = time.mktime(time.strptime(created_at, "%a %b %d %H:%M:%S +0000 %Y"))
+                        data['timestamp'] = itemTimestamp
 
-                    itemTimestamp = time.mktime(time.strptime(created_at, "%a %b %d %H:%M:%S +0000 %Y"))
-                    data['timestamp'] = itemTimestamp
+                        if previous != None:
+                            delta = data['timestamp'] - previous['timestamp']
+                            if delta > maxDelta:
+                                maxDelta = delta
+                                text = 'Delta between tweets is {4}  ---> {0}: {2}. {1}: {3}'.format(data['id_str'],
+                                                                                                     previous['id_str'],
+                                                                                                     data['timestamp'],
+                                                                                                     previous['timestamp'],
+                                                                                                     maxDelta)
+                                self.session.logger.error(text)
+                        if count % 500 == 0:
+                            self.session.logger.fine('Cursor index {0}. Processed successfuly {1}'.format(count, self.session.processed_))
 
-                    if previous != None:
-                        delta = data['timestamp'] - previous['timestamp']
-                        if delta > maxDelta:
-                            maxDelta = delta
-                            text = 'Delta between tweets is {4}  ---> {0}: {2}. {1}: {3}'.format(data['id_str'],
-                                                                                                 previous['id_str'],
-                                                                                                 data['timestamp'],
-                                                                                                 previous['timestamp'],
-                                                                                                 maxDelta)
-                            self.session.logger.error(text)
-                    if skip % 500 == 0:
-                        self.session.logger.fine('Cursor index {0}. Processed successfuly {1}'.format(skip, self.session.increment_counter()))
-
-                    previous = data
+                        previous = data
+                    #end if
 
                     # publish to listeners
                     self.session.increment_counter()
-                    flag = self.publish(data)
 
-                    if not flag:
+                    #to_continue = True
+                    #if self.session.increment_counter()<10:
+                    to_continue = self.publish(data)
+                    if not to_continue:
                         break
 
                 done = True
@@ -153,9 +202,17 @@ class MongoDBStreamer(Action):
                 self.session.logger.error(' ***** Failed at {0}:).'.format(t2))
                 self.session.logger.error(' \tPrevious item was: {0} (processing time was {1} seconds).'.format(previous, time.time() - lasttime))
                 self.session.logger.error(' \tError: {0}'.format( e ))
-                skip -= 1
+                count -= 1
                 #if not (msg.startswith("cursor id") and msg.endswith("not valid at server")):
                 #    raise
+
+            except Exception as toe:
+                three_errors -= 1
+                print('Error in query on DB ', three_errors, str(toe))
+                if three_errors == 0:
+                    done = True
+                    #pass
+                raise
 
         """
         try:
@@ -236,7 +293,10 @@ class TwitterTextListener(Listener):
 
         metadata['retweet'] = (data.get('retweet', None) != None)
 
-        metadata['user'] = data['user']['screen_name']
+        metadata['user'] = data['user'].get('screen_name', None)
+        if metadata['user'] == None:
+            metadata['user'] = data['user']['id_str']
+
         metadata['timestamp'] = data['timestamp']
 
         metadata['text'] = data['text'].replace('\t', ' ').replace('\n', '. ')

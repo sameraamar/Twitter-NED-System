@@ -37,7 +37,7 @@ class HashtableLSH:
         self.session = session
         self.hyperPlanes = self.randomHyperPlanes( hyperPlanesNumber, dimensionSize )
 
-        self.unique_id = uniqueTempFileName(self.session.temp_folder())
+        self.unique_id = uniqueTempFileName(self.session.get_temp_folder())
         self.saveHyperPlanes()
 
     def query(self, item):
@@ -239,7 +239,7 @@ class LSHForest:
     _planes_idx = None
     _planes_file = None
     session = None
-    DIMENSION_JUMPS = 5000
+    DIMENSION_JUMPS = 1000
 
     def __init__(self, **kwargs):
         self.dimSize = 3
@@ -339,7 +339,7 @@ class LSHForest:
 
 
         if self._planes_file == None:
-            self._planes_file = uniqueTempFileName(self.session.temp_folder())
+            self._planes_file = uniqueTempFileName(self.session.get_temp_folder())
             self._planes, self._codes = self._concatenateHyperplanes(self._planes_file)
 
         txt = lh.generateHashCodeGeneric(self.session, self._planes, point.v)

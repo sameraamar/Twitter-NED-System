@@ -2,44 +2,38 @@
 from simplelogger import simplelogger
 import datetime, time
 
+
+
 from tempfile import gettempdir
 import os.path as path
 from os import makedirs
 import uuid
 
+refbrowser_on = False
 
-def varname(var):
-  frame = inspect.currentframe()
-  var_id = id(var)
+import datetime
+import math
 
-  for k, v in list(locals().iteritems()):
-      if v is a:
-          a_as_str = k
-
-  for name in frame.f_back.f_locals.keys():
-    try:
-      if id(eval(name)) == var_id:
-        return(name)
-    except:
-      pass
-
-def get_variable_name(*variable):
-    '''gets string of variable name
-    inputs
-        variable (str)
-    returns
-        string
+def human_time(*args, **kwargs):
     '''
-    if len(variable) != 1:
-        raise Exception('len of variables inputed must be 1')
-    try:
-        ret = [k for k, v in locals().items() if id(v) == id(variable[0])]
-        ret = ret[0]
-    except:
-        ret = [k for k, v in globals().items() if id(v) == id(variable[0])]
-        ret = ret[0]
+    human_time([days[, seconds[, microseconds[, milliseconds[, minutes[, hours[, weeks]]]]]]])
+    All arguments are optional and default to 0. Arguments may be ints, longs, or floats, and may be positive or negative.
 
-    return ret
+    arguments are following the format of datetime.timedelta() function
+    :return: string
+    '''
+    secs  = float(datetime.timedelta(*args, **kwargs).total_seconds())
+    units = [("day", 86400), ("hour", 3600), ("minute", 60), ("second", 1)]
+    parts = []
+    for unit, mul in units:
+        if secs / mul >= 1 or mul == 1:
+            if mul > 1:
+                n = int(math.floor(secs / mul))
+                secs -= n * mul
+            else:
+                n = secs if secs != int(secs) else int(secs)
+            parts.append("%s %s%s" % (n, unit, "" if n == 1 else "s"))
+    return ", ".join(parts)
 
 def output_function(o):
     txt1 = txt2 = ''
@@ -69,6 +63,7 @@ class Session:
     lshmodel = None
 
     #profiling
+    profiling_idx = 0
     tracker_on = False
     cb = None
     #tr = None
@@ -77,7 +72,9 @@ class Session:
         self.unique_id = str(datetime.datetime.utcnow()) #datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')
 
         self.tracker_on = tracker_on
-        if self.tracker_on:
+
+        global refbrowser_on
+        if refbrowser_on:
             from pympler import tracker
             from pympler import refbrowser
             import inspect
@@ -88,14 +85,20 @@ class Session:
             #self.tr.print_diff()
         return
 
-    def temp_folder(self):
+    def generate_temp_folder(self, parentfolder, prefix='', suffix=''):
         if self._temp_folder == None:
             temp = "".join(x for x in self.unique_id if x.isalnum())
-            folder = path.join(gettempdir(), 'LSH', temp)
+            folder = path.join(gettempdir(), parentfolder, prefix + temp + suffix)
             self._temp_folder = folder
 
             if not path.exists(folder):
                 makedirs(folder)
+
+        return self._temp_folder
+
+    def get_temp_folder(self):
+        if self._temp_folder == None:
+            raise Exception('no temp folder created. call session.generate_temp_folder() first')
 
         return self._temp_folder
 
@@ -108,19 +111,14 @@ class Session:
 
     def increment_counter(self):
         self.processed_ += 1
-        n = 1000
-        if (self.processed_ > 0) and (self.processed_ % n == 0):
-            #filename = uniqueTempFileName(self._temp_folder)
-            page = int(self.processed_ / n)
-            threads_filename = '{0}/threads_{1:03d}.txt'.format(self._temp_folder , page)
-            self.logger.info('Processed {0}. Output {1}'.format( self.processed_ , threads_filename))
-            self.lshmodel.dumpThreads3(threads_filename, max_threads=2000)
 
         if self.tracker_on and (self.processed_ % 500 == 0) :
             self.lshmodel.myprint()
 
-            #self.cb.print_tree('{0}/print_tree_{1:06d}.log'.format(self._temp_folder , self.processed_))
-            #self.tr.print_diff()
+            global refbrowser_on
+            if refbrowser_on:
+                self.cb.print_tree('{0}/print_tree_{1:06d}.log'.format(self._temp_folder , self.processed_))
+                #self.tr.print_diff()
 
         return self.processed_
 
@@ -157,5 +155,39 @@ class MongoDBHandler:
         self.db_[self.session_.unique_id].update({'_id' : doc_id}, object, upsert=True)
         return
 
+    def add_to_thread(self, thread_id, entropy, entry):
+        thread = self.session_.unique_id + '_threads'
+        cursor = self.db_[thread].find_one({'_id': doc_id})
+
+        doc = {}
+        doc['list'] = []
+        for d in cursor:
+            doc = d
+        doc['list'].append( entry )
+        doc['entropy'] = entropy
+
+        self.db_[thread].update({'_id': doc_id}, doc, upsert=True)
+
+    def write_thread(self, thread_id, thread_details):
+        thread = self.session_.unique_id + '_threads'
+        cursor = self.db_[thread].find_one({'_id': thread_id})
+
+        # doc = {}
+        # doc['list'] = []
+        # for d in cursor:
+        #    doc = d
+        # doc['list'].append( entry )
+        # doc['entropy'] = entropy
+
+        # self.db_[thread].update({'_id': doc_id}, doc, upsert=True)
+        self.db_[thread].update({'_id': thread_id}, thread_details, upsert=True)
+
     def close(self):
         return
+
+
+if __name__ == '__main__':
+    print(human_time(seconds=20))
+    print(human_time(seconds=60))
+    print(human_time(seconds=121))
+    print(human_time(seconds=3670))

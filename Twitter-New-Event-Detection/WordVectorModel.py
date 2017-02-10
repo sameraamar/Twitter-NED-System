@@ -111,7 +111,7 @@ class TFIDFModel:
 
             weight [0, k] = p1 / p2 * f[0, k]
 
-        return weight.tocsr()
+        return f, weight.tocsr()
 
 
 """
