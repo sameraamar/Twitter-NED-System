@@ -43,7 +43,7 @@ def init_mongodb(k, maxB, tables, threshold, max_docs, page, recent_documents, d
     return session, lshmodel
 
 
-def execute(session, lshmodel, page, max_docs, host, port, db, collection, max_threads, folder='.', filenames=None):
+def execute(session, lshmodel, offset, max_docs, host, port, db, collection, max_threads, folder='.', filenames=None):
     session.logger.entry("main.execute")
 
 
@@ -52,10 +52,10 @@ def execute(session, lshmodel, page, max_docs, host, port, db, collection, max_t
 
     #TextGZipStreameSet
     if filenames:
-        streamer = TextGZipStreameSet(session, folder, filenames)
+        streamer = TextGZipStreameSet(session, folder, filenames, offset=offset)
     else:
         streamer = MongoDBStreamer(session)
-        streamer.init(host, port, db, collection, offset=int(page * max_docs))
+        streamer.init(host, port, db, collection, offset=offset)
 
     listener = TwitterTextListener(session)
     listener.init(lshmodel, max_docs)
@@ -101,17 +101,18 @@ def printInfo(session, lshmodel, measured_time, count):
 if __name__ == '__main__':
 
     k = 6
-    maxB = 100  # should be less than 0.5 of max_docs/(2^k)
+    maxB = 1000  # should be less than 0.5 of max_docs/(2^k)
     tables = 1
     threshold = 0.5
     # %%
     max_threads = 2000
-    max_docs = 2000000
-    recent_documents = 0
+    max_docs = 1000000
+    recent_documents = 50
     max_thread_delta_time = 3600  # 1 hour delta maximum
 
     dimension = 50000
     tfidf_mode = True
+
     # %%
 
     # mongodb
@@ -123,14 +124,13 @@ if __name__ == '__main__':
     #dbcoll = 'test'
 
     folder = 'C:\\data\\events_db\\petrovic'
-    filenames = ['petrovic_00000000.gz', 'petrovic_01000000.gz', 'petrovic_02000000.gz', 'petrovic_03000000.gz', 'petrovic_04000000.gz',
-                 'petrovic_05000000.gz', 'petrovic_06000000.gz', 'petrovic_07000000.gz', 'petrovic_08000000.gz', 'petrovic_09000000.gz',
-                 'petrovic_10000000.gz', 'petrovic_11000000.gz', 'petrovic_12000000.gz']
+    filenames = ['petrovic_00000000.gz', 'petrovic_00500000.gz', 'petrovic_01000000.gz', 'petrovic_01500000.gz', 'petrovic_02000000.gz',
+                 'petrovic_02500000.gz', 'petrovic_03000000.gz']
 
     min_rounds = 0
     max_rounds = 10
-    profiling_idx = 5000
-    page = 0
+    profiling_idx = 90000000
+    offset = 1000001
 
     tracker = False
 
@@ -145,7 +145,7 @@ if __name__ == '__main__':
     thread = {
         'title': 'Thread',
         'max_docs': {'value': max_docs, 'label': 'Max Input Documents'},
-        'page': {'value': page, 'label': 'Input Documents Page'},
+        'offset': {'value': offset, 'label': 'Input Documents Offset'},
         'recent_documents': {'value': recent_documents, 'label': 'Search Recent Documents'},
         'max_threads': {'value': max_threads, 'label': 'Max Threads'},
         'threshold': {'value': threshold, 'label': 'Threshold'},
@@ -175,7 +175,7 @@ if __name__ == '__main__':
         min_rounds = int(sys.argv[2])
         max_rounds = int(sys.argv[3])
 
-    session, lshmodel = init_mongodb(k, maxB, tables, threshold, max_docs, page, recent_documents=recent_documents,
+    session, lshmodel = init_mongodb(k, maxB, tables, threshold, max_docs, offset, recent_documents=recent_documents,
                                      dimension=dimension, max_thread_delta_time=max_thread_delta_time, tfidf_mode = tfidf_mode,
                                      tracker=tracker, profiling_idx=profiling_idx)
     session.logger.info(json.dumps(parameters, indent=4, sort_keys=True))
@@ -196,7 +196,7 @@ if __name__ == '__main__':
         file.write('max_docs\tseconds\tminutes\tusage\n')
 
     starttime = time.time()
-    execute(session, lshmodel, page, max_docs, host, port, dbname, dbcoll, max_threads, folder=folder, filenames=filenames)
+    execute(session, lshmodel, offset, max_docs, host, port, dbname, dbcoll, max_threads, folder=folder, filenames=filenames)
     measured_time = time.time() - starttime
     usage_psutil = memory_usage_psutil()
 
@@ -204,4 +204,4 @@ if __name__ == '__main__':
     file.write('{0}\t{1}\t{2}\t{3}\n'.format(max_docs, measured_time, measured_time / 60, usage_psutil))
     file.close()
 
-    printInfo(session, lshmodel, measured_time, max_docs)
+    printInfo(session, lshmodel, measured_time, max_docs-profiling_idx)

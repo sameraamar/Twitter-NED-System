@@ -6,7 +6,7 @@ import numpy as np
 
 
 
-file_name = 'C:\\Users\\samera\\AppData\\Local\\Temp\\LSH\\20170127071902520143\\log_0350000_docs.log'
+file_name = 'C:\\Users\\t-saaama\\AppData\\Local\\Temp\\LSH\\20170214205805230944_1000000\\log_1000000_docs.log'
 
 file = open(file_name, 'r')
 

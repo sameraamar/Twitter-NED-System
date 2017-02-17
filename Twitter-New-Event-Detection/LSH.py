@@ -42,6 +42,18 @@ class HashtableLSH:
 
     def query(self, item):
         """
+         find nearest neighbor
+         :param item: in the same structure as returned by add function
+         :return: closest approximate neighobor
+         """
+        self.session.logger.entry('HashtableLSH.query')
+        bucket = self.buckets[item['hashcode']]
+
+        self.session.logger.exit('HashtableLSH.query')
+        return bucket
+
+    def query1(self, item):
+        """
         find nearest neighbor
         :param item: in the same structure as returned by add function
         :return: closest approximate neighobor
@@ -53,9 +65,11 @@ class HashtableLSH:
         minDist = None
         bucket_size = len(bucket)
         p1 = item['point']
+
         for neighbor in bucket:
             if neighbor['point'].ID == item['point'].ID:
                 continue
+
             p2 = neighbor['point']
 
             dist = lh.distance(p1, p2, logger=self.session.logger, auto_fix_dim=True)
@@ -282,9 +296,9 @@ class LSHForest:
 
         item = table.add(doc_point, hashcode=hashcode)
         
-        candidateNeighbor, dist, bucket_size = table.query(item)
+        neighbors = table.query(item)
         self.session.logger.exit('LSH.add_single')        
-        return candidateNeighbor, dist, bucket_size 
+        return neighbors
 
     def fix_dimension(self, point):
         self.session.logger.entry("LSHForest.fix_dimension")
@@ -375,22 +389,37 @@ class LSHForest:
         nearestDist = None
         comparisons = 0
         #invokes = []
-        results = []
+        counter = {}
+        items = {}
 
 
         doc_point.v = self.fix_dimension(doc_point.v)
         codes = self.generateHashCodes(doc_point)
 
         for table in self.hList:
-            candidateNeighbor, dist, bucket_size  = self.add_to_table(table, doc_point, hashcode=codes[table.unique_id])
-            results.append((candidateNeighbor, dist, bucket_size ))
+            neighbors  = self.add_to_table(table, doc_point, hashcode=codes[table.unique_id])
+            for candidate in neighbors:
+                n = candidate['point']
+                if doc_point.ID == n.ID:
+                    continue
 
+                c = counter.get(n.ID, 0)
+                counter[n.ID] = c + 1
+                if items.get(n.ID, None) == None:
+                    items[n.ID] = candidate
 
-        for candidateNeighbor, dist, bucket_size in results:
-            comparisons += bucket_size-1
+        limit = 3 * self.numberTables
+
+        for id in sorted(counter, key=counter.get, reverse=True):
+            dist = lh.distance(doc_point, items[id]['point'], self.session.logger, auto_fix_dim=True)
             if nearestDist==None or (dist != None and nearestDist>dist):
-                nearest = candidateNeighbor
+                nearest = items[id]
                 nearestDist = dist
+
+            limit -= 1
+            if limit == 0:
+                break
+
 
         self.session.logger.exit('LSHForest.add')
         return nearest, nearestDist, comparisons, doc_point

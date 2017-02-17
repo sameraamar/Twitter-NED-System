@@ -180,6 +180,10 @@ class NED_LSH_model:
         self.session.logger.entry("NED_LSH_model.addDocument")
         base = time.time()
         index = self._addDocument(ID, itemText, metadata)
+        if index < 0:
+            self.session.logger.exit("NED_LSH_model.addDocument")
+            return index
+
         self.times.append(time.time() - base)
 
         if self.last_timestamp_tmp==None:
@@ -231,6 +235,10 @@ class NED_LSH_model:
 
         if not self.tfidf_mode:
             itemText = self.process(itemText)
+
+        if itemText.strip() == '':
+            self.session.logger.exit("NED_LSH_model._addDocument")
+            return -1
 
         self.text_data.append(itemText)
         self.id_list.append(ID)
@@ -308,6 +316,14 @@ class NED_LSH_model:
 
         if nearestDist == None or nearestDist > self.threshold:
             create_new_thread = True
+
+        nearThread = nearThreadID  = None
+        if not create_new_thread:
+            nearThreadID = self.tweet2thread[nearestID]
+            nearThread = self.threads_queue.get(nearThreadID, None)
+
+            if nearThread == None or not nearThread.is_open(): #data['timestamp']):
+                create_new_thread = True
 
         """
         nearThread = nearThreadID  = None
@@ -585,7 +601,13 @@ class NED_LSH_model:
             text = self.text_metadata[x]['text'] #.replace('\t', ' ')
             #text = text.encode(encoding='utf-8')
             ttt = human_time(seconds=self.threads_queue[x].thread_time())
-            file.write('\n' + '-'*40 + ' THREAD {0} - {1} documents score: {2} and {3} users. period of {4}'.format(thr, threadSize, self.threads_queue[x].entropy(), self.threads_queue[x].users_count(), ttt) + '-'*40 + '\n')
+            isOpen = ''
+            if not self.threads_queue[x].is_open():
+             isOpen = ' [CLOSED]'
+
+            file.write('\n' + '-'*40 + ' THREAD {0}{5} - {1} documents score: {2} and {3} users. period of {4}'.format(thr, threadSize, self.threads_queue[x].entropy(),
+                                                                                                                          self.threads_queue[x].users_count(), ttt,
+                                                                                                                          isOpen) + '-'*40 + '\n')
             file.write('Leader is {0}: "{1}"\n'.format(x, text))
             file.write('thread\tleading doc\titem#\titem ID\tuser\tnearest ID\tdistance\titem text\titem text(original)\n')
             c = 1
@@ -598,7 +620,9 @@ class NED_LSH_model:
                 nearestDist = self.threads_queue[x].document_contents[item][1]
                 file.write('{0}\t{1}\t{2}\t{3}\t{4}\t{7}\t{8}\t"{5}"\t"{6}"\n'.format( thr, x, c, item, user, text1, text2, nearID, nearestDist ))
                 c+=1
-            thr += 1
+            if self.threads_queue[x].is_open():
+                thr += 1
+
             if thr>max_threads:
                 break
             

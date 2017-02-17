@@ -23,12 +23,12 @@ class Document:
         self._found = 0
 
     def norm(self, logger=None):
-        loggerEntry(logger, "Document.norm")
         if self._norm == None:
+            loggerEntry(logger, "Document.norm")
             n = self.v.dot(self.v.T)
             self._norm = np.sqrt (n[0,0])
+            loggerEntry(logger, "Document.norm", exit=True)
 
-        loggerEntry(logger, "Document.norm", exit=True)
         return self._norm
 
 #def norm(v, logger):

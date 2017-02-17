@@ -126,9 +126,9 @@ class TweetThread:
 
         self.session.logger.exit('tweet_thread.append')
 
-    def is_open(self, current_timestamp):
+    def is_open(self):
         # 1 hour max time
-        return current_timestamp-self.min_timestamp < self.max_time_delta;
+        return self.max_timestamp - self.min_timestamp < self.max_time_delta;
 
     def users_count(self):
         return len(self.users)

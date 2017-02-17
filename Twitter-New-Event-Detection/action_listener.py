@@ -17,6 +17,8 @@ class Listener:
         # do nothing and continue
         return True
 
+    def finalize(self):
+        return
 
 class Action:
     listeners = []
@@ -75,24 +77,33 @@ class TextFileStreamer(Action):
 
 class TextGZipStreameSet(Action):
     source = None
-    i = 0
+    counter = 0
     filenames = []
+    offset = 0
     folder = '.'
 
-    def __init__(self, session, folder, filenames):
+    def __init__(self, session, folder, filenames, offset=0):
         super(self.__class__, self).__init__(session)
+        self.offset = offset
         self.filenames = filenames
         self.folder = folder
+        self.counter = 0
 
 
     def start(self):
         stop = False
+        self.counter = 0
         for fname in self.filenames:
             self.source = gzip.open(self.folder + '/' + fname, 'rt', encoding='utf-8')
 
             self.session.logger.info('Loading file {0}'.format(fname))
             for line in self.source:
                 if line.strip() == '':
+                    continue
+
+                self.counter += 1
+                if self.offset > self.counter:
+                    print('skip {0} to {1}'.format(self.counter, self.offset))
                     continue
 
                 # json
@@ -143,7 +154,7 @@ class MongoDBStreamer(Action):
 
         basetime = lasttime = time.time()
 
-        count = 0
+        count = self.offset
         done = False
         three_errors = 3
         while not done:
@@ -162,6 +173,9 @@ class MongoDBStreamer(Action):
                     count += 1
                     lasttime = time.time()
                     data = item.get('json', None)
+                    #if data == None:
+                    #    continue
+
                     if data != None:
                         # data = json.loads(data)
                         # convert to text
@@ -181,7 +195,7 @@ class MongoDBStreamer(Action):
                                                                                                      maxDelta)
                                 self.session.logger.error(text)
                         if count % 500 == 0:
-                            self.session.logger.fine('Cursor index {0}. Processed successfuly {1}'.format(count, self.session.processed_))
+                            self.session.logger.fine('Cursor index {0}. Processed successfully {1}'.format(count, self.session.processed_))
 
                         previous = data
                     #end if
@@ -191,7 +205,7 @@ class MongoDBStreamer(Action):
 
                     #to_continue = True
                     #if self.session.increment_counter()<10:
-                    to_continue = self.publish(data)
+                    to_continue = self.publish(item)
                     if not to_continue:
                         break
 
@@ -277,8 +291,12 @@ class TwitterTextListener(Listener):
         self.max_documents = max_documents
         self.times = []
 
-    def act(self, data):
+    def act(self, item):
         self.session.logger.entry("TwitterTextListener.act")
+
+        data = item.get('json', None)
+        if data == None:
+            data = item
 
         itemText_tmp = data['text']
         itemText = ' '.join(self.process(itemText_tmp))
@@ -314,6 +332,10 @@ class TwitterTextListener(Listener):
 
         base = time.time()
         index = self.lshmodel.addDocument(ID, itemText, metadata)
+
+        if index == -1:
+            self.session.logger.exit("TwitterTextListener.act")
+            return True
 
         #self.times.append(time.time() - base)
 
