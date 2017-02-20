@@ -14,6 +14,7 @@ from scipy.sparse import hstack
 from scipy.sparse import vstack
 import linalg_helper as lh
 from session import uniqueTempFileName
+DIMENSION_JUMPS = 5000
 
 class HashtableLSH:
     # parameters
@@ -125,27 +126,6 @@ class HashtableLSH:
 
         return ''.join(temp_hashcode)
 
-
-        """
-
-        self.session.logger.entry('HashtableLSH.generateHashCode-b')
-        point = np.asarray(point)
-        hashcode = np.dot( point, self.hyperPlanes)
-        hashcode[hashcode < 0] = 0
-        hashcode[hashcode > 0] = 1
-
-        hashcode.eliminate_zeros()
-
-
-        asstr = hashcode.A.astype('S1').tostring().decode('utf-8')
-
-        values = (hashcode, asstr)
-
-        self.session.logger.exit('HashtableLSH.generateHashCode-b')
-
-        return asstr
-        """
-
     def fix_dimension(self, new_dimension):
         if new_dimension <= self.hyperPlanes.shape[1]:
             return
@@ -162,17 +142,6 @@ class HashtableLSH:
 
         #self.hyperPlanes = self.hyperPlanes.tocsr()
         self.saveHyperPlanes()
-
-        """
-        zeros = sparse.lil_matrix((1, delta), dtype=np.float64)
-        if point != None:
-            pdim = point.shape[1]
-            point = hstack((point, zeros[:,:b-pdim]))
-        for h in self.buckets:
-            for item in self.buckets[h]:
-                tmp = hstack((item['point'], zeros))
-                item['point'] = tmp
-        """
 
         self.session.logger.exit("fix_dimension")
 
@@ -238,7 +207,6 @@ class HashtableLSH:
         lengths = [len(self.buckets[b]) for b in self.buckets]
         self.session.logger.info('number of items in each bucket: {}'.format( lengths))
 
-
 class LSHForest:
     """
     LSHForest - set of LSH HashTable.
@@ -253,7 +221,6 @@ class LSHForest:
     _planes_idx = None
     _planes_file = None
     session = None
-    DIMENSION_JUMPS = 1000
 
     def __init__(self, **kwargs):
         self.dimSize = 3
@@ -261,11 +228,13 @@ class LSHForest:
         self.hList = None
         self.session = None
 
+
         self._planes = None
         self._planes_idx = None
         self._planes_file = None
         return super().__init__(**kwargs)
-    
+
+
     def init(self, dimensionSize, session, hyperPlanesNumber=40, numberTables=4, maxBucketSize=10):
         self.session = session
         self.session.logger.entry('LSH.__init__')
@@ -277,6 +246,8 @@ class LSHForest:
         self._planes_file = None
 
         self.numberTables = numberTables
+
+
         self.hList = [HashtableLSH(session, maxBucketSize, dimensionSize, hyperPlanesNumber) for i in range(numberTables)]
         self.session.logger.info('LSH model initialization done')
         self.session.logger.exit('LSH.__init__')
@@ -291,20 +262,11 @@ class LSHForest:
             h.myprint()
         self.session.logger.info('dimenion: {0} tables {1} '.format(self.dimSize, self.numberTables))
 
-    def add_to_table(self, table, doc_point, hashcode=None):
-        self.session.logger.entry('LSH.add_single')
-
-        item = table.add(doc_point, hashcode=hashcode)
-        
-        neighbors = table.query(item)
-        self.session.logger.exit('LSH.add_single')        
-        return neighbors
-
     def fix_dimension(self, point):
         self.session.logger.entry("LSHForest.fix_dimension")
 
         if self.dimSize < point.shape[1]:
-            self.dimSize = point.shape[1] + self.DIMENSION_JUMPS
+            self.dimSize = point.shape[1] + DIMENSION_JUMPS
             self.session.logger.debug("Changing dimension to bigger: {0}".format(self.dimSize))
             for table in self.hList:
                 table.fix_dimension(self.dimSize)
@@ -364,6 +326,8 @@ class LSHForest:
             i = self._codes[h.unique_id]
             codes[h.unique_id] = txt[i*h.hyperPlanesNumber : (i+1)*h.hyperPlanesNumber]
 
+        self.session.logger.exit("LSHForest.generateHashCodes")
+
         return codes
 
 
@@ -397,7 +361,10 @@ class LSHForest:
         codes = self.generateHashCodes(doc_point)
 
         for table in self.hList:
-            neighbors  = self.add_to_table(table, doc_point, hashcode=codes[table.unique_id])
+            self.session.logger.entry('add_to_table')
+            item = table.add(doc_point, hashcode=codes[table.unique_id])
+            #item = table.add(doc_point)
+            neighbors = table.query(item)
             for candidate in neighbors:
                 n = candidate['point']
                 if doc_point.ID == n.ID:
@@ -407,6 +374,7 @@ class LSHForest:
                 counter[n.ID] = c + 1
                 if items.get(n.ID, None) == None:
                     items[n.ID] = candidate
+            self.session.logger.exit('add_to_table')
 
         limit = 3 * self.numberTables
 
@@ -427,6 +395,9 @@ class LSHForest:
 
     def size(self):
         return self.hList[0].size()
+
+    def finish(self):
+        #mp.close_processes()
 
 #%%
 

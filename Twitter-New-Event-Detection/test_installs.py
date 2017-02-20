@@ -12,8 +12,6 @@ import math
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.metrics import pairwise_distances
-#from scipy.spatial import distance as dist
-#import linalg_helper as lh
 from scipy import sparse
 from scipy import stats
 import threading

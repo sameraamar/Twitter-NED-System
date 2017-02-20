@@ -6,10 +6,12 @@ import sys
 import os.path
 import time
 from action_listener import MongoDBStreamer, TwitterTextListener, TextGZipStreameSet
-from session import Session, MongoDBHandler
+from session import Session, MongoDBHandler, TextFileHandler
 from simplelogger import simplelogger
 from NED import NED_LSH_model
 import json
+import datetime
+from session import human_time
 
 def memory_usage_psutil():
     # return the memory usage in MB
@@ -83,7 +85,7 @@ def printInfo(session, lshmodel, measured_time, count):
     session.logger.info('print profiling!')
 
     temp = session.get_temp_folder()
-    session.logger.profiling_dump(path=temp, avg_base=count)
+    session.logger.profiling_dump(human_time, path=temp, avg_base=count)
     msg = 'done with {0:.2f} seconds (= {1:.2f} minutes).'.format(measured_time, measured_time / 60)
     print(msg)
     session.logger.info(msg)
@@ -100,14 +102,14 @@ def printInfo(session, lshmodel, measured_time, count):
 
 if __name__ == '__main__':
 
-    k = 6
-    maxB = 1000  # should be less than 0.5 of max_docs/(2^k)
+    k = 13
+    maxB = 100  # should be less than 0.5 of max_docs/(2^k)
     tables = 1
     threshold = 0.5
     # %%
     max_threads = 2000
-    max_docs = 1000000
-    recent_documents = 50
+    max_docs = 10000
+    recent_documents = 0
     max_thread_delta_time = 3600  # 1 hour delta maximum
 
     dimension = 50000
@@ -124,13 +126,71 @@ if __name__ == '__main__':
     #dbcoll = 'test'
 
     folder = 'C:\\data\\events_db\\petrovic'
-    filenames = ['petrovic_00000000.gz', 'petrovic_00500000.gz', 'petrovic_01000000.gz', 'petrovic_01500000.gz', 'petrovic_02000000.gz',
-                 'petrovic_02500000.gz', 'petrovic_03000000.gz']
+    filenames = [   'petrovic_00000000.gz',
+                    'petrovic_00500000.gz',
+                    'petrovic_01000000.gz',
+                    'petrovic_01500000.gz',
+                    'petrovic_02000000.gz',
+                    'petrovic_02500000.gz',
+                    'petrovic_03000000.gz',
+                    'petrovic_03500000.gz',
+                    'petrovic_04000000.gz',
+                    'petrovic_04500000.gz',
+                    'petrovic_05000000.gz',
+                    'petrovic_05500000.gz',
+                    'petrovic_06000000.gz',
+                    'petrovic_06500000.gz',
+                    'petrovic_07000000.gz',
+                    'petrovic_07500000.gz',
+                    'petrovic_08000000.gz',
+                    'petrovic_08500000.gz',
+                    'petrovic_09000000.gz',
+                    'petrovic_09500000.gz',
+                    'petrovic_10000000.gz',
+                    'petrovic_10500000.gz',
+                    'petrovic_11000000.gz',
+                    'petrovic_11500000.gz',
+                    'petrovic_12000000.gz',
+                    'petrovic_12500000.gz',
+                    'petrovic_13000000.gz',
+                    'petrovic_13500000.gz',
+                    'petrovic_14000000.gz',
+                    'petrovic_14500000.gz',
+                    'petrovic_15000000.gz',
+                    'petrovic_15500000.gz',
+                    'petrovic_16000000.gz',
+                    'petrovic_16500000.gz',
+                    'petrovic_17000000.gz',
+                    'petrovic_17500000.gz',
+                    'petrovic_18000000.gz',
+                    'petrovic_18500000.gz',
+                    'petrovic_19000000.gz',
+                    'petrovic_19500000.gz',
+                    'petrovic_20000000.gz',
+                    'petrovic_20500000.gz',
+                    'petrovic_21000000.gz',
+                    'petrovic_21500000.gz',
+                    'petrovic_22000000.gz',
+                    'petrovic_22500000.gz',
+                    'petrovic_23000000.gz',
+                    'petrovic_23500000.gz',
+                    'petrovic_24000000.gz',
+                    'petrovic_24500000.gz',
+                    'petrovic_25000000.gz',
+                    'petrovic_25500000.gz',
+                    'petrovic_26000000.gz',
+                    'petrovic_26500000.gz',
+                    'petrovic_27000000.gz',
+                    'petrovic_27500000.gz',
+                    'petrovic_28000000.gz',
+                    'petrovic_28500000.gz',
+                    'petrovic_29000000.gz',
+                    'petrovic_29500000.gz' ]
 
     min_rounds = 0
     max_rounds = 10
-    profiling_idx = 90000000
-    offset = 1000001
+    profiling_idx = 0
+    offset = 0
 
     tracker = False
 
@@ -178,30 +238,39 @@ if __name__ == '__main__':
     session, lshmodel = init_mongodb(k, maxB, tables, threshold, max_docs, offset, recent_documents=recent_documents,
                                      dimension=dimension, max_thread_delta_time=max_thread_delta_time, tfidf_mode = tfidf_mode,
                                      tracker=tracker, profiling_idx=profiling_idx)
-    session.logger.info(json.dumps(parameters, indent=4, sort_keys=True))
+    try:
+        session.logger.info(json.dumps(parameters, indent=4, sort_keys=True))
 
-    #mongodb_url= 'mongodb://{0}:{1}'.format(host, port)
-    #dbname = 'output'
-    #m = MongoDBHandler(session, mongodb_url, dbname)
-    #session.init_output(m)
+        #mongodb_url= 'mongodb://{0}:{1}'.format(host, port)
+        #dbname = 'output'
+        #m = MongoDBHandler(session, mongodb_url, dbname)
+        #session.init_output(m)
 
-    preformance_file = session.get_temp_folder() + '/../performance.txt'
+        m = TextFileHandler(session)
+        session.init_output(m)
 
-    newFile = True
-    if os.path.isfile(preformance_file ):
-        newFile = False
-    file = open(preformance_file, 'a')
+        preformance_file = session.get_temp_folder() + '/../performance.txt'
 
-    if newFile:
-        file.write('max_docs\tseconds\tminutes\tusage\n')
+        newFile = True
+        if os.path.isfile(preformance_file ):
+            newFile = False
+        file = open(preformance_file, 'a')
 
-    starttime = time.time()
-    execute(session, lshmodel, offset, max_docs, host, port, dbname, dbcoll, max_threads, folder=folder, filenames=filenames)
-    measured_time = time.time() - starttime
-    usage_psutil = memory_usage_psutil()
+        if newFile:
+            file.write('max_docs\tseconds\tminutes\ttime\n')
 
+        starttime = time.time()
+        execute(session, lshmodel, offset, max_docs, host, port, dbname, dbcoll, max_threads, folder=folder, filenames=filenames)
+        measured_time = time.time() - starttime
+        #usage_psutil = memory_usage_psutil()
 
-    file.write('{0}\t{1}\t{2}\t{3}\n'.format(max_docs, measured_time, measured_time / 60, usage_psutil))
-    file.close()
+        strtime = datetime.datetime.fromtimestamp( starttime ).strftime('%Y-%m-%d %H:%M:%S')
+        file.write('{0}\t{1}\t{2}\t{3}\n'.format(max_docs, measured_time, measured_time / 60, strtime))
+        file.close()
 
-    printInfo(session, lshmodel, measured_time, max_docs-profiling_idx)
+        printInfo(session, lshmodel, measured_time, max_docs-profiling_idx)
+    except Exception as e:
+        raise e
+    finally:
+        lshmodel.lsh.finish()
+        session.finish()

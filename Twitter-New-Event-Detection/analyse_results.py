@@ -6,7 +6,7 @@ import numpy as np
 
 
 
-file_name = 'C:\\Users\\t-saaama\\AppData\\Local\\Temp\\LSH\\20170214205805230944_1000000\\log_1000000_docs.log'
+file_name = 'C:\\Users\\t-saaama\\AppData\\Local\\Temp\\LSH\\20170217162708802966_2000000\\log_2000000_docs.log'
 
 file = open(file_name, 'r')
 
@@ -70,16 +70,22 @@ if __name__ == '__main__':
 
     for line in file:
 
-        match = re.search(r"\(AHT: (\d+\.\d+)\(s\)\)", line)
-        match = re.search(r'Processed (\d+) documents \(reported in (\d+\.\d+) seconds\). \(AHT: (\d+\.\d+)\(s\)\). Word vector dimention is (\d+)', line)
+        #match = re.search(r"\(AHT: (\d+\.\d+)\(s\)\)", line)
+        #if match:
+        #    wait = 0
+        match = re.search(r'Processed (\d+) documents \(reported in( (\d+) minutes,)* (\d+) seconds\). \(AHT: (\d+\.\d+)\(s\)\). Word vector dimention is (\d+)', line)
 
         if match:
             documents.append(match.group(1))
-            reported_periods.append(match.group(2))
-            ahts.append(match.group(3))
-            dimensions.append( match.group(4))
+            p = float(match.group(4))/60
+            if match.group(3) != None:
+                p += int(match.group(3))
+            reported_periods.append(p)
 
-        #print('{0}\t{1}\t{2}\t{3}'.format(doc, per, aht, dim))
+            ahts.append(match.group(5))
+            dimensions.append( match.group(6))
+
+                    #print('{0}\t{1}\t{2}\t{3}'.format(doc, per, aht, dim))
 
     file.close()
 

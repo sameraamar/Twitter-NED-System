@@ -8,6 +8,7 @@ from tempfile import gettempdir
 import os.path as path
 from os import makedirs
 import uuid
+import codecs, json
 
 refbrowser_on = False
 
@@ -85,6 +86,10 @@ class Session:
             #self.tr.print_diff()
         return
 
+    def finish(self):
+        if self.output != None:
+            self.output.close()
+
     def generate_temp_folder(self, parentfolder, prefix='', suffix=''):
         if self._temp_folder == None:
             temp = "".join(x for x in self.unique_id if x.isalnum())
@@ -155,7 +160,7 @@ class MongoDBHandler:
         self.db_[self.session_.unique_id].update({'_id' : doc_id}, object, upsert=True)
         return
 
-    def add_to_thread(self, thread_id, entropy, entry):
+    """def add_to_thread(self, thread_id, entropy, entry):
         thread = self.session_.unique_id + '_threads'
         cursor = self.db_[thread].find_one({'_id': doc_id})
 
@@ -167,7 +172,7 @@ class MongoDBHandler:
         doc['entropy'] = entropy
 
         self.db_[thread].update({'_id': doc_id}, doc, upsert=True)
-
+    """
     def write_thread(self, thread_id, thread_details):
         thread = self.session_.unique_id + '_threads'
         cursor = self.db_[thread].find_one({'_id': thread_id})
@@ -183,6 +188,63 @@ class MongoDBHandler:
         self.db_[thread].update({'_id': thread_id}, thread_details, upsert=True)
 
     def close(self):
+        return
+
+
+class TextFileHandler:
+    file_ = None
+    counter_ = 0
+    session_ = None
+    dumps_ = 0
+    filepattern_ = ''
+
+    def __init__(self, session):
+        self.session_ = session
+        self.counter_ = 0
+        self.dumps_ = 0
+
+        self.filepattern_ = session.get_temp_folder() + '/thread_{0:07d}.txt'
+        filename = self.filepattern_.format(self.dumps_)
+        self.file_ = codecs.open(filename, mode='+w', encoding='utf-8')
+
+        return
+
+    def classify_doc(self, doc_id, object):
+        #text = json.dumps({'id': doc_id, 'thread': object}, indent=4, sort_keys=True)
+        #self.file_.write(text)
+        return
+
+    """def add_to_thread(self, thread_id, entropy, entry):
+        thread = self.session_.unique_id + '_threads'
+        cursor = self.db_[thread].find_one({'_id': doc_id})
+
+        doc = {}
+        doc['list'] = []
+        for d in cursor:
+            doc = d
+        doc['list'].append( entry )
+        doc['entropy'] = entropy
+
+        self.db_[thread].update({'_id': doc_id}, doc, upsert=True)
+    """
+    def write_thread(self, thread_id, thread_details):
+        text = json.dumps({'id': thread_id, 'thread': thread_details}, indent=4, sort_keys=True)
+        self.file_.write(text)
+        #self.file_.write(text.replace('\n', ' '))
+        #self.file_.write('\n')
+        self.file_.write('\n**||**\n')
+
+        self.counter_ += 1
+        if self.counter_==10:
+            self.file_.close()
+            self.counter_ = 0
+            self.dumps_ += 1
+            filename = self.filepattern_.format(self.dumps_)
+            self.file_ = codecs.open(filename, mode='+w', encoding='utf-8')
+
+    def close(self):
+        print('Closing...')
+        self.file_.close()
         return
 
 

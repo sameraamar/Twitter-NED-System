@@ -179,6 +179,11 @@ class NED_LSH_model:
     def addDocument(self, ID, itemText, metadata):
         self.session.logger.entry("NED_LSH_model.addDocument")
         base = time.time()
+
+        if self.processed == self.profiling_idx:
+            print('**************** Turn profiling on......')
+            self.session.logger.turn_profiling()
+
         index = self._addDocument(ID, itemText, metadata)
         if index < 0:
             self.session.logger.exit("NED_LSH_model.addDocument")
@@ -199,10 +204,6 @@ class NED_LSH_model:
             self.session.logger.info('Processed {0}. Output {1}'.format( self.processed , threads_filename))
             self.dumpThreads3(threads_filename, max_threads=2000)
 
-
-        if self.processed == self.profiling_idx:
-            print('**************** Turn profiling on......')
-            self.session.logger.turn_profiling()
 
         if self.processed%1000==0 or self.last_timestamp - self.last_timestamp_tmp > 60:
             ttt = human_time(seconds=self.last_timestamp - self.first_timestamp)
@@ -319,11 +320,20 @@ class NED_LSH_model:
 
         nearThread = nearThreadID  = None
         if not create_new_thread:
-            nearThreadID = self.tweet2thread[nearestID]
+            nearThreadID = self.tweet2thread.get(nearestID, None)
+            if nearThreadID == None:
+                wait = True #for easy debug purposes
             nearThread = self.threads_queue.get(nearThreadID, None)
 
             if nearThread == None or not nearThread.is_open(): #data['timestamp']):
                 create_new_thread = True
+
+                if nearThread != None:
+                    #if nearThread.size() > 2:
+                    #    nearThread.dump(self.text_metadata)
+
+                    self.threads_queue.pop(nearThreadID)
+                    self.tweet2thread.pop(nearestID)
 
         """
         nearThread = nearThreadID  = None
@@ -609,16 +619,18 @@ class NED_LSH_model:
                                                                                                                           self.threads_queue[x].users_count(), ttt,
                                                                                                                           isOpen) + '-'*40 + '\n')
             file.write('Leader is {0}: "{1}"\n'.format(x, text))
-            file.write('thread\tleading doc\titem#\titem ID\tuser\tnearest ID\tdistance\titem text\titem text(original)\n')
+            file.write('thread\tleading doc\titem#\titem ID\tuser\ttimestamp\tnearest ID\tdistance\titem text\titem text(original)\n')
             c = 1
             for item in self.threads_queue[x].idlist:
                 i = self.doc_indices[item]
                 text1 = self.text_data[i]
                 text2 = self.text_metadata[item]['text'] 
                 user = self.text_metadata[item]['user']
+                timestamp = self.text_metadata[item]['created_at']
                 nearID = self.threads_queue[x].document_contents[item][0]
                 nearestDist = self.threads_queue[x].document_contents[item][1]
-                file.write('{0}\t{1}\t{2}\t{3}\t{4}\t{7}\t{8}\t"{5}"\t"{6}"\n'.format( thr, x, c, item, user, text1, text2, nearID, nearestDist ))
+                file.write('{0}\t{1}\t{2}\t{3}\t{4}\t{7}\t{8}\t"{5}"\t"{6}"\t"{9}"\n'.format( thr, x, c, item, user, timestamp,
+                                                                                       text1, text2, nearID, nearestDist ))
                 c+=1
             if self.threads_queue[x].is_open():
                 thr += 1

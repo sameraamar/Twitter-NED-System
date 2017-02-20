@@ -4,12 +4,14 @@ Created on Sun Oct 23 14:01:57 2016
 
 @author: SAMERA
 """
+
+
 from datetime import datetime
 import sys
 import threading
 import matplotlib.pyplot as plt
-
 import numpy as np
+
 
 def scatter_plot_with_correlation_line(x, y, graph_filepath, title):
     '''
@@ -171,7 +173,7 @@ class simplelogger:
 
         #self.debug('Exit: {0} at {1}'.format(func, ts))
 
-    def profiling_dump(self, path=None, avg_base=None):
+    def profiling_dump(self, human_time, path=None, avg_base=None):
         for func in sorted( self.profiling_res , key=self.profiling_res.get, reverse=True):
             seconds, count = self.profiling_res[func]
 
@@ -181,12 +183,12 @@ class simplelogger:
             mins = int(seconds / 60.0)
             secs = seconds - mins * 60
 
-            msg = 'invoked {1:10} times, total {2}\' {3:.6f}\'\' - {0}'.format(func, count, mins, secs)
+            msg = 'invoked {1:10} times, total {2} - {0}'.format(func, count, human_time(seconds=secs))
             if avg_base!=None:
                 tmp = float(avg_base)
                 mins = mins / tmp
                 secs = secs / tmp
-                msg += '\t- average {0:.6f} s ({1:.6f} min) based on {2} iterations'.format(secs, mins, avg_base)
+                msg += '\t- average {0} based on {1} iterations'.format(human_time(seconds=secs), avg_base)
 
             self.info(msg)
 

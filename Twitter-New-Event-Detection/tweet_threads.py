@@ -1,6 +1,7 @@
 from simplelogger import simplelogger
-from math import log
+from math import log10
 import numpy as np
+from session import human_time
 
 
 
@@ -68,33 +69,43 @@ class TweetThread:
         self.session.logger.exit('tweet_thread.append')
 
     def dump(self, text_metadata):
-        if not self.saved :
+        if self.saved :
             #already saved
             return
 
-        self.session.logger.entry('tweet_thread.dump')
+        #self.session.logger.entry('tweet_thread.dump')
 
-        self.session.logger.info('Going to dump this thread: lead: '.format( self.thread_id, ': ', end=''))
+        #self.session.logger.info('Going to dump this thread: lead: '.format( self.thread_id, ': ', end=''))
+        self.saved = True
 
         entr = self.entropy()
+        if entr < 2:
+            #self.session.logger.info('Entropy {0} is too low for thread: {1}'.format(entr, self.thread_id) )
+            return
+
         entries = []
-        msg = list()
+        #msg = list()
         for ID in self.idlist:
             nearID, nearestDist = self.document_contents[ID]
-            entry = { 'nearest': nearID,
+            entry = { 'ID' : ID,
+                      'nearest': nearID,
                       'nearestDist': nearestDist,
                       'text' : text_metadata[ID]['text'],
-                      'user' : text_metadata[ID]['user'] }
+                      'user' : text_metadata[ID]['user'],
+                      'timestamp' : text_metadata[ID]['timestamp'],
+                      'created_at': text_metadata[ID]['created_at']}
             entries.append(entry)
-            msg.append(ID)
-        self.session.logger.info( ', '.join(msg) )
+            #msg.append(ID)
+        #self.session.logger.info( ', '.join(msg) )
 
         doc = {}
         doc['thread_id'] = self.thread_id
-        doc['thread_text'] = text_metadata[self.thread_id]
+        #doc['thread_text'] = text_metadata[self.thread_id]
 
         doc['list'] = entries
         doc['entropy'] = entr
+        doc['period'] = human_time(seconds=self.thread_time())
+
 
         self.session.output.write_thread( thread_id=self.thread_id, thread_details=doc )
 
@@ -140,7 +151,7 @@ class TweetThread:
         N = np.sum(self.all_words)
         temp = self.all_words / N
 
-        temp_log = np.log(temp, 10)
+        temp_log = np.log10(temp, 10)
         temp = temp * temp_log
         segma = np.sum(temp)
 
@@ -150,7 +161,7 @@ class TweetThread:
         segma = 0
         for i in self.counter:
             d = float(self.counter[i]) / self.count_all
-            segma -= d * log(d)
+            segma -= d * log10(d)
         return segma
 
     def thread_time(self):

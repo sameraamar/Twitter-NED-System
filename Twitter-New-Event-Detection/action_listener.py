@@ -102,8 +102,9 @@ class TextGZipStreameSet(Action):
                     continue
 
                 self.counter += 1
-                if self.offset > self.counter:
-                    print('skip {0} to {1}'.format(self.counter, self.offset))
+                if self.offset > self.counter :
+                    if self.counter % 1000 == 0:
+                        print('skip {0} to {1}'.format(self.counter, self.offset))
                     continue
 
                 # json
@@ -316,6 +317,7 @@ class TwitterTextListener(Listener):
             metadata['user'] = data['user']['id_str']
 
         metadata['timestamp'] = data['timestamp']
+        metadata['created_at'] = data['created_at']
 
         metadata['text'] = data['text'].replace('\t', ' ').replace('\n', '. ')
         """

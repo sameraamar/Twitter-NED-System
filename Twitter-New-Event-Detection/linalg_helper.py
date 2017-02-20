@@ -159,7 +159,8 @@ def randomMatrix(rows, cols, density):
 
 
 def generateHashCodeGeneric(session, planes, point):
-    session.logger.entry('HashtableLSH.generateHashCodeGeneric')
+    if session != None:
+        session.logger.entry('HashtableLSH.generateHashCodeGeneric')
 
     # temp_hashcode = lh.generateCode(planes, point)
 
@@ -174,7 +175,9 @@ def generateHashCodeGeneric(session, planes, point):
 
     m[m > 0] = 1
     m[m < 0] = 0
-    session.logger.exit("HashtableLSH.generateHashCodeGeneric")
+
+    if session != None:
+        session.logger.exit("HashtableLSH.generateHashCodeGeneric")
 
     txt = ''.join([str(int(k)) for k in m[:, -1]])
 
