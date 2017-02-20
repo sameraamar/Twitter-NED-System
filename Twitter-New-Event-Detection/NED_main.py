@@ -20,7 +20,10 @@ def memory_usage_psutil():
     return mem
 
 
-def init_mongodb(k, maxB, tables, threshold, max_docs, page, recent_documents, dimension, max_thread_delta_time, tfidf_mode = True, tracker=False, profiling_idx=0):
+def init_mongodb(k, maxB, tables, threshold, max_docs, page, recent_documents,
+                 multiprocess, num_processes, dimension_jumps,
+                 dimension, max_thread_delta_time,
+                 tfidf_mode = True, tracker=False, profiling_idx=0):
     print('Running LSH with {0} tweets ..... '.format(max_docs), end='')
 
 
@@ -37,6 +40,7 @@ def init_mongodb(k, maxB, tables, threshold, max_docs, page, recent_documents, d
     # %%
     lshmodel = NED_LSH_model()
     lshmodel.init(session, k, tables, max_bucket_size=maxB, dimension=dimension, threshold=threshold,
+                  multiprocess=multiprocess, num_processes=num_processes, dimension_jumps=dimension_jumps,
                   recent_documents=recent_documents, tfidf_mode = tfidf_mode, max_thread_delta_time=max_thread_delta_time,
                   profiling_idx=profiling_idx)
 
@@ -47,12 +51,10 @@ def init_mongodb(k, maxB, tables, threshold, max_docs, page, recent_documents, d
 
 def execute(session, lshmodel, offset, max_docs, host, port, db, collection, max_threads, folder='.', filenames=None):
     session.logger.entry("main.execute")
-
-
+    base = time.time()
     # streamer = TextStreamer(logger)
     # streamer.init('C:\data\_Personal\DataScientist\datasets\Italy1.json')
 
-    #TextGZipStreameSet
     if filenames:
         streamer = TextGZipStreameSet(session, folder, filenames, offset=offset)
     else:
@@ -67,21 +69,21 @@ def execute(session, lshmodel, offset, max_docs, host, port, db, collection, max
 
     nn = listener.lshmodel.processed
     delta = listener.lshmodel.last_timestamp - listener.lshmodel.first_timestamp
-    session.logger.info('Processed {0} text documents. (time delta: {1} min)'.format(nn, delta/60.0))
+    exec_time = time.time() - base
+    session.logger.info('Processed {0} text documents in {2} (time delta between documents: {1}) '.format(nn, human_time(seconds=delta), human_time(seconds=exec_time)))
 
     # %%
     threads_filename = session.get_temp_folder() + '/threads_{0:07d}_docs.txt'.format(max_docs)
 
-    lshmodel.dumpThreads(threads_filename.replace('.txt', '1.txt'), max_threads)
-    lshmodel.dumpThreads2(threads_filename.replace('.txt', '2.txt'), max_threads)
-    lshmodel.dumpThreads3(threads_filename.replace('.txt', '3.txt'), max_threads)
-    # print ( lshmodel.jsonify(max_threads) )
+    #lshmodel.dumpThreads(threads_filename.replace('.txt', '1.txt'), max_threads)
+    #lshmodel.dumpThreads2(threads_filename.replace('.txt', '2.txt'), max_threads)
+    lshmodel.dumpThreads(threads_filename.replace('.txt', '3.txt'), max_threads)
 
     session.logger.exit("main.execute")
 
     return lshmodel
 
-def printInfo(session, lshmodel, measured_time, count):
+def printInfo(session, lshmodel, measured_time, count, max_docs):
     session.logger.info('print profiling!')
 
     temp = session.get_temp_folder()
@@ -100,11 +102,17 @@ def printInfo(session, lshmodel, measured_time, count):
     return lshmodel
 
 
-if __name__ == '__main__':
-
+def mymain(num_tables=4, num_processes=8):
     k = 13
     maxB = 100  # should be less than 0.5 of max_docs/(2^k)
-    tables = 1
+
+    NUM_PROCESS = num_processes
+    multiprocess = NUM_PROCESS>0
+
+    dimension = 50000
+    DIMENSION_JUMPS = 5000
+
+    tables = num_tables
     threshold = 0.5
     # %%
     max_threads = 2000
@@ -112,7 +120,6 @@ if __name__ == '__main__':
     recent_documents = 0
     max_thread_delta_time = 3600  # 1 hour delta maximum
 
-    dimension = 50000
     tfidf_mode = True
 
     # %%
@@ -189,7 +196,7 @@ if __name__ == '__main__':
 
     min_rounds = 0
     max_rounds = 10
-    profiling_idx = 0
+    profiling_idx = 100000000
     offset = 0
 
     tracker = False
@@ -236,6 +243,7 @@ if __name__ == '__main__':
         max_rounds = int(sys.argv[3])
 
     session, lshmodel = init_mongodb(k, maxB, tables, threshold, max_docs, offset, recent_documents=recent_documents,
+                                     multiprocess=multiprocess, num_processes=NUM_PROCESS, dimension_jumps=DIMENSION_JUMPS,
                                      dimension=dimension, max_thread_delta_time=max_thread_delta_time, tfidf_mode = tfidf_mode,
                                      tracker=tracker, profiling_idx=profiling_idx)
     try:
@@ -257,7 +265,7 @@ if __name__ == '__main__':
         file = open(preformance_file, 'a')
 
         if newFile:
-            file.write('max_docs\tseconds\tminutes\ttime\n')
+            file.write('max_docs\tseconds\tminutes\ttime\tprocesses\ttables\n')
 
         starttime = time.time()
         execute(session, lshmodel, offset, max_docs, host, port, dbname, dbcoll, max_threads, folder=folder, filenames=filenames)
@@ -265,12 +273,22 @@ if __name__ == '__main__':
         #usage_psutil = memory_usage_psutil()
 
         strtime = datetime.datetime.fromtimestamp( starttime ).strftime('%Y-%m-%d %H:%M:%S')
-        file.write('{0}\t{1}\t{2}\t{3}\n'.format(max_docs, measured_time, measured_time / 60, strtime))
+        file.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\n'.format(max_docs, measured_time, measured_time / 60, strtime, NUM_PROCESS, tables))
         file.close()
 
-        printInfo(session, lshmodel, measured_time, max_docs-profiling_idx)
+        printInfo(session, lshmodel, measured_time, max_docs-profiling_idx, max_docs)
     except Exception as e:
         raise e
     finally:
         lshmodel.lsh.finish()
         session.finish()
+
+
+if __name__ == '__main__':
+    from math import pow
+    for pow2 in range(0, 4, 1):
+        num_processes = int(pow(2, pow2))
+        for tables in range(1, 64, 10):
+            if tables >= num_processes:
+                print('processes: ', num_processes, ' tables: ', tables)
+                mymain(tables, num_processes)

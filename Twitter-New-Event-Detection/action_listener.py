@@ -320,46 +320,10 @@ class TwitterTextListener(Listener):
         metadata['created_at'] = data['created_at']
 
         metadata['text'] = data['text'].replace('\t', ' ').replace('\n', '. ')
-        """
-        self.text_data.append( itemText )
-        self.id_list.append ( ID )
 
-        index = len(self.text_data)-1
-        self.text_metadata[ ID ] = metadata
-        self.doc_indices[ ID ] = index
-
-        if index == 1:
-            self.session.logger.info("First tweet: {}".format(metadata))
-        """
-
-        base = time.time()
         index = self.lshmodel.addDocument(ID, itemText, metadata)
 
-        if index == -1:
-            self.session.logger.exit("TwitterTextListener.act")
-            return True
-
-        #self.times.append(time.time() - base)
-
-        #fraction = 100.0 * index / self.max_documents
-        #if int(fraction) == fraction:
-        #    self.session.logger.info(
-        #        "Total processed {0} (AHT: {2:.2f}(s)). Word vector dimention is {1}".format(self.lshmodel.processed,
-        #                                                                                     self.lshmodel.getDimension(),
-        #                                                                                     np.average(self.times)))
-        #    self.times = []
-
-        if index + 1 == self.max_documents:
-            before = time.time()
-            self.session.logger.info("Last tweet: {}".format(metadata))
-            self.session.logger.info('running LSH on {} documents'.format(index + 1))
-
-            # self.lshmodel.run(self.text_data, self.id_list, self.text_metadata, self.doc_indices)
-            x = time.time() - before
-            x = (int(x / 60), int(x) % 60)
-
-            self.session.logger.info('Time for running the LSH model was: {0} min and {1} sec'.format(x[0], x[1]))
-            self.session.logger.exit("TwitterTextListener.act")
+        if index == -1 or (index + 1 == self.max_documents):
             return False
 
         if index % 100 == 0:

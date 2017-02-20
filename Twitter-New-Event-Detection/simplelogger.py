@@ -180,13 +180,14 @@ class simplelogger:
             #if seconds < 0.01:
             #    continue
 
-            mins = int(seconds / 60.0)
-            secs = seconds - mins * 60
+            #mins = int(seconds / 60.0)
+            #secs = seconds - mins * 60
 
+            secs = seconds
             msg = 'invoked {1:10} times, total {2} - {0}'.format(func, count, human_time(seconds=secs))
             if avg_base!=None:
                 tmp = float(avg_base)
-                mins = mins / tmp
+                #mins = mins / tmp
                 secs = secs / tmp
                 msg += '\t- average {0} based on {1} iterations'.format(human_time(seconds=secs), avg_base)
 

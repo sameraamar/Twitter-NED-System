@@ -5,7 +5,8 @@ Created on Sun Oct 16 12:51:47 2016
 @author: SAMERA
 """
 
-from LSH_MP import LSHForest_MP
+from LSHForest_MP import LSHForest_MP
+from LSHForest import LSHForest
 from scipy.sparse import csr_matrix
 import numpy as np
 from simple_twitter_parser import preprocess
@@ -43,6 +44,8 @@ class NED_LSH_model:
     times = []
     max_thread_delta_time = 3600
     recent = []
+
+    multiprocess = False
 
     #
     word2index = {}
@@ -85,11 +88,19 @@ class NED_LSH_model:
         self.last_timestamp = None
         self.max_thread_delta_time = max_thread_delta_time
         self.profiling_idx = profiling_idx
+        self.multiprocess = multiprocess
 
-        self.lsh = LSHForest_MP()
-        self.lsh.init(session=self.session, dimensionSize=dimension , numberTables=self.tables,
-                      num_processes=num_processes, dimension_jumps=dimension_jumps,
-                      hyperPlanesNumber=self.hyper_planes, maxBucketSize=self.max_bucket_size)
+        if self.multiprocess:
+            self.lsh = LSHForest_MP()
+            self.lsh.init(session=self.session, dimensionSize=dimension , numberTables=self.tables,
+                          num_processes=num_processes, dimension_jumps=dimension_jumps,
+                          hyperPlanesNumber=self.hyper_planes, maxBucketSize=self.max_bucket_size)
+
+        else:
+            self.lsh = LSHForest()
+            self.lsh.init(session=self.session, dimensionSize=dimension , numberTables=self.tables,
+                          num_processes=num_processes, dimension_jumps=dimension_jumps,
+                          hyperPlanesNumber=self.hyper_planes, maxBucketSize=self.max_bucket_size)
         self.tfidf = TFIDFModel(initial_dim=dimension)
         self.tfidf_mode = tfidf_mode
 

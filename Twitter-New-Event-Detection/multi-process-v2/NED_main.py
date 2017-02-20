@@ -106,7 +106,7 @@ if __name__ == '__main__':
     k = 13
     maxB = 100  # should be less than 0.5 of max_docs/(2^k)
 
-    NUM_PROCESS = 2
+    NUM_PROCESS = 0
     multiprocess = NUM_PROCESS>0
 
     dimension = 50000
@@ -116,7 +116,7 @@ if __name__ == '__main__':
     threshold = 0.5
     # %%
     max_threads = 2000
-    max_docs = 10000
+    max_docs = 1000
     recent_documents = 0
     max_thread_delta_time = 3600  # 1 hour delta maximum
 

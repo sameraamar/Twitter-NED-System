@@ -15,8 +15,6 @@ from scipy.sparse import vstack
 import linalg_helper as lh
 from session import uniqueTempFileName
 
-#DIMENSION_JUMPS = None
-
 class HashtableLSH:
     # parameters
     maxBucketSize = None
@@ -194,8 +192,8 @@ class HashtableLSH:
         return item
 
     def saveHyperPlanes(self):
-        #lh.saveMatrix(self.unique_id, self.hyperPlanes)
-        return
+        lh.saveMatrix(self.unique_id, self.hyperPlanes)
+
 
     def randomHyperPlanes(self, hyperPlanesNumber, dimSize):
         key = 'HashtableLSH.randomHyperPlanes {0}'.format(dimSize)
