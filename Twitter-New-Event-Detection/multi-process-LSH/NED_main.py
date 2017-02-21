@@ -12,8 +12,6 @@ from NED import NED_LSH_model
 import json
 import datetime
 from session import human_time
-#import multi_process_worker as mp
-#import LSH as lsh
 
 def memory_usage_psutil():
     # return the memory usage in MB
@@ -42,7 +40,7 @@ def init_mongodb(k, maxB, tables, threshold, max_docs, page, recent_documents,
     # %%
     lshmodel = NED_LSH_model()
     lshmodel.init(session, k, tables, max_bucket_size=maxB, dimension=dimension, threshold=threshold,
-                  multiprocess=multiprocess, num_processes=num_processes, dimension_jumps=dimension_jumps,
+                  num_processes=num_processes, dimension_jumps=dimension_jumps,
                   recent_documents=recent_documents, tfidf_mode = tfidf_mode, max_thread_delta_time=max_thread_delta_time,
                   profiling_idx=profiling_idx)
 
@@ -85,7 +83,7 @@ def execute(session, lshmodel, offset, max_docs, host, port, db, collection, max
 
     return lshmodel
 
-def printInfo(session, lshmodel, measured_time, count):
+def printInfo(session, lshmodel, measured_time, count, max_docs):
     session.logger.info('print profiling!')
 
     temp = session.get_temp_folder()
@@ -104,24 +102,26 @@ def printInfo(session, lshmodel, measured_time, count):
     return lshmodel
 
 
-if __name__ == '__main__':
-    k = 13
-    maxB = 100  # should be less than 0.5 of max_docs/(2^k)
+def mymain(num_tables=4, num_processes=8):
+    if num_tables < num_processes:
+        return -1
 
-    NUM_PROCESS = 2
+    k = 3
+    maxB = 10  # should be less than 0.5 of max_docs/(2^k)
+
+    NUM_PROCESS = num_processes
     multiprocess = NUM_PROCESS>0
 
     dimension = 50000
     DIMENSION_JUMPS = 5000
 
-    tables = 4
+    tables = num_tables
     threshold = 0.5
     # %%
     max_threads = 2000
-    max_docs = 100000
+    max_docs = 1000
     recent_documents = 0
     max_thread_delta_time = 3600  # 1 hour delta maximum
-
 
     tfidf_mode = True
 
@@ -279,9 +279,49 @@ if __name__ == '__main__':
         file.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\n'.format(max_docs, measured_time, measured_time / 60, strtime, NUM_PROCESS, tables))
         file.close()
 
-        printInfo(session, lshmodel, measured_time, max_docs-profiling_idx)
+        printInfo(session, lshmodel, measured_time, max_docs-profiling_idx, max_docs)
     except Exception as e:
         raise e
     finally:
         lshmodel.lsh.finish()
         session.finish()
+
+
+    return measured_time
+
+
+def benchmark():
+    processes = []
+    tables = []
+    seconds = []
+
+    max_proc = 16
+    max_tables = 64
+    for num_processes in sorted(range(0, max_proc + 1, 2), reverse=True):
+        if num_processes == 0:
+            num_processes = 1
+
+        for num_tables in sorted(range(0, max_tables + 1, 4), reverse=True):
+            if num_tables == 0:
+                num_tables = 1
+
+            if num_tables >= num_processes:
+                tables.append(num_tables)
+                processes.append(num_processes)
+
+                seconds.append(mymain(num_tables, num_processes))
+                # seconds.append(0)
+
+    print(processes)
+    print(tables)
+    print(seconds)
+
+    from plot_3d import plot_trisuf3d
+
+    plot_trisuf3d(processes, tables, seconds, 'Performance', 'Processes', 'Tables', 'Seconds')
+
+
+if __name__ == '__main__':
+
+    #benchmark()
+    mymain(num_tables=1, num_processes=1)

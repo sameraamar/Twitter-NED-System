@@ -23,6 +23,7 @@ class HashtableLSH:
     # data members
     hyperPlanes = None
     buckets = None
+    id2hashcode = {}
     session = None
     total = 0
 
@@ -32,6 +33,7 @@ class HashtableLSH:
         self.hyperPlanesNumber = hyperPlanesNumber
         self.maxBucketSize = maxBucketSize
         self.buckets = {}
+        self.id2hashcode = {}
         self.total = 0
         self.hyperPlanesNumber = hyperPlanesNumber
         self.session = session
@@ -49,41 +51,18 @@ class HashtableLSH:
         if self.session.logger != None:
             self.session.logger.entry('HashtableLSH.query')
 
-        bucket = self.buckets[item['hashcode']]
+        bucket = self.buckets[self.id2hashcode[ item ]]
 
         if self.session.logger != None:
             self.session.logger.exit('HashtableLSH.query')
+
         return bucket
 
-    def query1(self, item):
-        """
-        find nearest neighbor
-        :param item: in the same structure as returned by add function
-        :return: closest approximate neighobor
-        """
-        self.session.logger.entry('HashtableLSH.query')
-        bucket = self.buckets[item['hashcode']]
+    def generateHashCode(self, ID, point):
+        hashcode = self.id2hashcode.get(ID, None)
+        if hashcode != None:
+            return hashcode
 
-        nearest = None
-        minDist = None
-        bucket_size = len(bucket)
-        p1 = item['point']
-
-        for neighbor in bucket:
-            if neighbor['point'].ID == item['point'].ID:
-                continue
-
-            p2 = neighbor['point']
-
-            dist = lh.distance(p1, p2, logger=self.session.logger, auto_fix_dim=True)
-            if minDist == None or dist < minDist:
-                minDist = dist
-                nearest = neighbor
-
-        self.session.logger.exit('HashtableLSH.query')
-        return nearest, minDist, bucket_size
-
-    def generateHashCode(self, point):
         if self.session.logger!=None:
             self.session.logger.entry('HashtableLSH.generateHashCode')
 
@@ -105,30 +84,9 @@ class HashtableLSH:
         if self.session.logger != None:
             self.session.logger.exit("HashtableLSH.generateHashCode")
 
+        self.id2hashcode[ID] = txt2
+
         return txt2
-
-    def generateHashCode_bak(self, point):
-        self.session.logger.debug('Shape of point: {0} and nonzeros {1} point is {2} '.format(str(point.shape), len(np.nonzero(point)[0]), str(point) ))
-
-        self.session.logger.entry('HashtableLSH.generateHashCode-a')
-
-        nonzeros = np.nonzero(point)
-        temp_hashcode = []
-
-        for i in range(self.hyperPlanesNumber):
-            d = 0
-            v = list()
-            for j in nonzeros[1]:
-                v.append( self.hyperPlanes[i, j] * point[0,j] )
-
-            d = sum(v)
-
-            #temp_hashcode += ('1' if d > 0 else '0')
-            temp_hashcode.append('1' if d > 0 else '0')
-            #temp_hashcode = temp_hashcode.append(d)
-        self.session.logger.exit("HashtableLSH.generateHashCode-a")
-
-        return ''.join(temp_hashcode)
 
     def fix_dimension(self, new_dimension):
         if new_dimension <= self.hyperPlanes.shape[1]:
@@ -152,16 +110,18 @@ class HashtableLSH:
             self.session.logger.exit("fix_dimension")
 
 
-    def add(self, doc_point, hashcode=None):
+    def add(self, ID, point_vec, hashcode=None):
         if self.session.logger!=None:
             self.session.logger.entry('HashtableLSH.add')
-        if hashcode == None:
-            hashcode = self.generateHashCode(doc_point.v)
 
-        item = {}
-        #item['ID'] = ID
-        item['point'] = doc_point
-        item['hashcode'] = hashcode
+        if hashcode == None:
+            hashcode = self.generateHashCode(ID, point_vec)
+
+        #item = {}
+        ##item['ID'] = ID
+        #item['point'] = doc_point
+        #item['hashcode'] = hashcode
+        item = ID
 
         b = self.buckets.get(hashcode, None)
         if b == None:
@@ -182,7 +142,8 @@ class HashtableLSH:
         
         if len(self.buckets[hashcode]) > self.maxBucketSize:
             #self.buckets[hashcode].pop(index=0) # = self.buckets[hashcode][1:]
-            self.buckets[hashcode] = self.buckets[hashcode][1:]
+            id_removed = self.buckets[hashcode].pop(0)
+            self.id2hashcode.pop(id_removed)
             self.total -= 1
         
         #self.buckets[hashcode] = b

@@ -12,6 +12,8 @@ from LSH import HashtableLSH
 
 from multiprocessing import Process, Queue
 import linalg_helper as lh
+from simplelogger import simplelogger
+from session import human_time
 
 EXIT = 0
 INIT = 1
@@ -35,6 +37,10 @@ def main_process(qin, qout):
         #print('multi-proc: command: ', cmd, end='')
         if cmd == EXIT:
             #print('multi-proc: shutdown process')
+            #temp = session.get_temp_folder()
+            #session.logger.profiling_dump(human_time, path=temp)
+
+            session.finish()
             break
 
         if cmd == DISTANCE:
@@ -47,10 +53,14 @@ def main_process(qin, qout):
             session = Session()
             session._temp_folder = folder
 
+            #log_filename = session.get_temp_folder() + '/log_subprocess.log'
+            #session.init_logger(filename=log_filename, std_level=simplelogger.INFO, file_level=simplelogger.DEBUG,profiling=True)
+
             numberTables = qin.get()
             maxBucketSize, dimensionSize, hyperPlanesNumber = qin.get()
 
             tables = [HashtableLSH(session, maxBucketSize, dimensionSize, hyperPlanesNumber) for i in range(numberTables)]
+            print('Tables: ', len(tables))
 
             qout.put('init done')
 
@@ -62,10 +72,13 @@ def main_process(qin, qout):
             qout.put('done')
 
         if cmd == ADD_DOC_AND_QUERY:
-            doc_point = qin.get()
+            ID = qin.get()
+            if ID == '':
+                print('Tables: ', len(tables))
+            point_vec = qin.get()
             tmp = {}
             for t in tables:
-                item = t.add(doc_point)
+                item = t.add(ID, point_vec)
                 neighbors = t.query(item)
                 tmp[t.unique_id] = neighbors
             qout.put(tmp)
@@ -138,13 +151,17 @@ def split2process(tables, num_processes):
     #print('multi-proc: Multi process: the Table:Process list:', table2process)
 """
 
-counter_flag = 0
-def add_and_query_doc(num_processes, doc_point):
-    global counter_flag
+#counter_flag = 0
+def add_and_query_doc(num_processes, doc_point, session):
+    #global counter_flag
     #print('multi-proc: add_and_query_doc: entry' , counter_flag)
+
+    session.logger.entry("M_P: add_and_query_doc()")
+
     for n in range(num_processes):
         qin[n].put(ADD_DOC_AND_QUERY)
-        qin[n].put(doc_point)
+        qin[n].put(doc_point.ID)
+        qin[n].put(doc_point.v)
 
     neighbors = {}
     for n in range(num_processes):
@@ -152,7 +169,11 @@ def add_and_query_doc(num_processes, doc_point):
         neighbors = {**neighbors, **tmp}
 
     #print('multi-proc: add_and_query_doc: exit', counter_flag)
-    counter_flag += 1
+    #counter_flag += 1
+
+    session.logger.exit("M_P: add_and_query_doc()")
+
+
     return neighbors
 
 
@@ -199,7 +220,6 @@ class LSHForest_MP:
         self.dimSize = 3
         self.numberTables = 1
         self.session = None
-
         self.dimension_jumps = None
         self.num_processes = 1
 
@@ -213,7 +233,6 @@ class LSHForest_MP:
 
         self.num_processes = num_processes
         self.dimension_jumps = dimension_jumps
-
         self.numberTables = numberTables
 
         init_processes(session, self.num_processes, numberTables, (maxBucketSize, dimensionSize, hyperPlanesNumber))
@@ -250,7 +269,7 @@ class LSHForest_MP:
 
     def add_and_query(self, doc_point):
         self.session.logger.entry('LSHForest_MP.add_and_query')
-        neighbors_list = add_and_query_doc(self.num_processes, doc_point)
+        neighbors_list = add_and_query_doc(self.num_processes, doc_point, self.session)
 
         c = len(neighbors_list)
         if c > self.numberTables:
@@ -269,6 +288,7 @@ class LSHForest_MP:
         counter = {}
         items = {}
 
+        #self.id2doc[doc_point.ID] = doc_point
 
         doc_point.v = self.fix_dimension(doc_point.v)
         self.session.logger.entry('add_to_table')
@@ -276,14 +296,13 @@ class LSHForest_MP:
         for x in neighbors_list:
             neighbors = neighbors_list[x]
             for candidate in neighbors:
-                n = candidate['point']
-                if doc_point.ID == n.ID:
+                if doc_point.ID == candidate:
                     continue
 
-                c = counter.get(n.ID, 0)
-                counter[n.ID] = c + 1
-                if items.get(n.ID, None) == None:
-                    items[n.ID] = candidate
+                c = counter.get(candidate, 0)
+                counter[candidate] = c + 1
+                if items.get(candidate, None) == None:
+                    items[candidate] = doc_point
             self.session.logger.exit('add_to_table')
 
 
@@ -319,7 +338,7 @@ class LSHForest_MP:
         p = 0
         for id in compare_to:
             qin[p].put( DISTANCE )
-            qin[p].put ( (id, doc_point, items[id]['point']) )
+            qin[p].put ( (id, doc_point, items[id]) )
             p+=1
             p=p % self.num_processes
 

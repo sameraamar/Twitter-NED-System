@@ -90,7 +90,7 @@ class simplelogger:
         
         self.handlers = [sys.stdout]
         if filename != None:
-            file = open(filename, 'w')
+            file = open(filename, 'a')
             self.handlers.append (file)
 
 

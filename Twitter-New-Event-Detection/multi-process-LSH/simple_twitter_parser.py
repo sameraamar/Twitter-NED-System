@@ -11,7 +11,7 @@ Anyway, I improved it by making it more reusable module with much more parameter
 
 #%%
 import re, string
-from nltk.corpus import stopwords
+#from nltk.corpus import stopwords
 
 
 emoticons_str = r"""
@@ -50,8 +50,8 @@ hashtag_re = re.compile(hashtag_str+'$', re.VERBOSE | re.IGNORECASE)
 html_re = re.compile(r"(?:&[A-Za-z]+;)", re.VERBOSE | re.IGNORECASE)
 
 puncchars = list(string.punctuation)
-eng_stopwords = set(stopwords.words('english'))
-ily_stopwords = set(stopwords.words('italian'))
+#eng_stopwords = set(stopwords.words('english'))
+#ily_stopwords = set(stopwords.words('italian'))
 
 # -*- coding: utf-8 -*-
 def isEnglish(s):
@@ -84,8 +84,8 @@ def preprocess(s, lowercase=True, emoicons=True, numbers=True, mentions=True, ur
             continue
         if not punctuation and token in puncchars:
             continue
-        if not stop_words and (token in ily_stopwords or token in eng_stopwords):
-            continue
+        #if not stop_words and (token in ily_stopwords or token in eng_stopwords):
+        #    continue
         if not url and url_re.search(token):
             continue
         if not hashtag and hashtag_re.search(token):

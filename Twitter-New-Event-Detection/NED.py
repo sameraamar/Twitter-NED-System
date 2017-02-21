@@ -286,10 +286,10 @@ class NED_LSH_model:
             'thread': None,
             'leader': None,
             'vector': str(doc_point.v),
-            'LSH-ID': None if nearest==None else nearest['point'].ID ,
-            'LSH-TEXT': None if nearest==None else self.text_metadata[ nearest['point'].ID ]['text'],
-            'LSH-norm': None if nearest==None else nearest['point'].norm(),
-            'LSH-vector': None if nearest==None else str(nearest['point'].v),
+            'LSH-ID': None if nearest==None else nearest.ID ,
+            'LSH-TEXT': None if nearest==None else self.text_metadata[ nearest.ID ]['text'],
+            'LSH-norm': None if nearest==None else nearest.norm(),
+            'LSH-vector': None if nearest==None else str(nearest.v),
             'LSH-distanse': nearestDist
         }
 
@@ -307,18 +307,18 @@ class NED_LSH_model:
                 nearest = nearest1
                 nearestDist = nearestDist1
 
-                object['Recent-ID'] = None if nearest == None else nearest['point'].ID
-                object['Recent-TEXT'] = None if nearest == None else self.text_metadata[nearest['point'].ID]['text']
-                object['Recent-norm'] = None if nearest == None else nearest['point'].norm()
+                object['Recent-ID'] = None if nearest == None else nearest.ID
+                object['Recent-TEXT'] = None if nearest == None else self.text_metadata[nearest.ID]['text']
+                object['Recent-norm'] = None if nearest == None else nearest.norm()
                 object['Recent-distanse'] = nearestDist
-                object['Recent-vector'] = None if nearest == None else str(nearest['point'].v)
+                object['Recent-vector'] = None if nearest == None else str(nearest.v)
 
         if self.session.output != None:
             self.session.output.classify_doc(doc_point.ID, object)
 
         nearestID = None
         if nearest != None:
-            nearestID = nearest['point'].ID
+            nearestID = nearest.ID
 
         create_new_thread = False
 

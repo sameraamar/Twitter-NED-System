@@ -89,6 +89,8 @@ class Session:
     def finish(self):
         if self.output != None:
             self.output.close()
+        if self.logger != None:
+            self.logger.close()
 
     def generate_temp_folder(self, parentfolder, prefix='', suffix=''):
         if self._temp_folder == None:

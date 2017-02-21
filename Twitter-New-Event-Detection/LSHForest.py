@@ -169,7 +169,7 @@ class LSHForest:
 
         for table in self.hList:
             self.session.logger.entry('add_to_table')
-            item = table.add(doc_point, hashcode=codes[table.unique_id])
+            item = table.add(doc_point.ID, doc_point.v, hashcode=codes[table.unique_id])
             #item = table.add(doc_point)
             neighbors = table.query(item)
             for candidate in neighbors:

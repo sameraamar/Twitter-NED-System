@@ -6,7 +6,6 @@ Created on Sun Oct 16 12:51:47 2016
 """
 
 from LSHForest_MP import LSHForest_MP
-from LSHForest import LSHForest
 from scipy.sparse import csr_matrix
 import numpy as np
 from simple_twitter_parser import preprocess
@@ -62,7 +61,7 @@ class NED_LSH_model:
         return self.lsh.dimSize
 
     def init(self, session, hyper_planes, tables, max_thread_delta_time, max_bucket_size=50,
-             multiprocess=False, num_processes=None, dimension_jumps=5000,
+             num_processes=None, dimension_jumps=5000,
              dimension=3, threshold=0.5,
              recent_documents=0, tfidf_mode=True, profiling_idx=5000):
         self.session = session
@@ -88,19 +87,12 @@ class NED_LSH_model:
         self.last_timestamp = None
         self.max_thread_delta_time = max_thread_delta_time
         self.profiling_idx = profiling_idx
-        self.multiprocess = multiprocess
 
-        if self.multiprocess:
-            self.lsh = LSHForest_MP()
-            self.lsh.init(session=self.session, dimensionSize=dimension , numberTables=self.tables,
-                          num_processes=num_processes, dimension_jumps=dimension_jumps,
-                          hyperPlanesNumber=self.hyper_planes, maxBucketSize=self.max_bucket_size)
+        self.lsh = LSHForest_MP()
+        self.lsh.init(session=self.session, dimensionSize=dimension , numberTables=self.tables,
+                      num_processes=num_processes, dimension_jumps=dimension_jumps,
+                      hyperPlanesNumber=self.hyper_planes, maxBucketSize=self.max_bucket_size)
 
-        else:
-            self.lsh = LSHForest()
-            self.lsh.init(session=self.session, dimensionSize=dimension , numberTables=self.tables,
-                          num_processes=num_processes, dimension_jumps=dimension_jumps,
-                          hyperPlanesNumber=self.hyper_planes, maxBucketSize=self.max_bucket_size)
         self.tfidf = TFIDFModel(initial_dim=dimension)
         self.tfidf_mode = tfidf_mode
 
@@ -286,10 +278,10 @@ class NED_LSH_model:
             'thread': None,
             'leader': None,
             'vector': str(doc_point.v),
-            'LSH-ID': None if nearest==None else nearest['point'].ID ,
-            'LSH-TEXT': None if nearest==None else self.text_metadata[ nearest['point'].ID ]['text'],
-            'LSH-norm': None if nearest==None else nearest['point'].norm(),
-            'LSH-vector': None if nearest==None else str(nearest['point'].v),
+            'LSH-ID': None if nearest==None else nearest.ID ,
+            'LSH-TEXT': None if nearest==None else self.text_metadata[ nearest.ID ]['text'],
+            'LSH-norm': None if nearest==None else nearest.norm(),
+            'LSH-vector': None if nearest==None else str(nearest.v),
             'LSH-distanse': nearestDist
         }
 
@@ -307,18 +299,18 @@ class NED_LSH_model:
                 nearest = nearest1
                 nearestDist = nearestDist1
 
-                object['Recent-ID'] = None if nearest == None else nearest['point'].ID
-                object['Recent-TEXT'] = None if nearest == None else self.text_metadata[nearest['point'].ID]['text']
-                object['Recent-norm'] = None if nearest == None else nearest['point'].norm()
+                object['Recent-ID'] = None if nearest == None else nearest.ID
+                object['Recent-TEXT'] = None if nearest == None else self.text_metadata[nearest.ID]['text']
+                object['Recent-norm'] = None if nearest == None else nearest.norm()
                 object['Recent-distanse'] = nearestDist
-                object['Recent-vector'] = None if nearest == None else str(nearest['point'].v)
+                object['Recent-vector'] = None if nearest == None else str(nearest.v)
 
         if self.session.output != None:
             self.session.output.classify_doc(doc_point.ID, object)
 
         nearestID = None
         if nearest != None:
-            nearestID = nearest['point'].ID
+            nearestID = nearest.ID
 
         create_new_thread = False
 
