@@ -106,8 +106,8 @@ def mymain(num_tables=4, num_processes=8):
     if num_tables < num_processes:
         return -1
 
-    k = 3
-    maxB = 10  # should be less than 0.5 of max_docs/(2^k)
+    k = 10
+    maxB = 100  # should be less than 0.5 of max_docs/(2^k)
 
     NUM_PROCESS = num_processes
     multiprocess = NUM_PROCESS>0
@@ -119,7 +119,7 @@ def mymain(num_tables=4, num_processes=8):
     threshold = 0.5
     # %%
     max_threads = 2000
-    max_docs = 1000
+    max_docs = 500000
     recent_documents = 0
     max_thread_delta_time = 3600  # 1 hour delta maximum
 
@@ -245,11 +245,13 @@ def mymain(num_tables=4, num_processes=8):
         min_rounds = int(sys.argv[2])
         max_rounds = int(sys.argv[3])
 
-    session, lshmodel = init_mongodb(k, maxB, tables, threshold, max_docs, offset, recent_documents=recent_documents,
-                                     multiprocess=multiprocess, num_processes=NUM_PROCESS, dimension_jumps=DIMENSION_JUMPS,
-                                     dimension=dimension, max_thread_delta_time=max_thread_delta_time, tfidf_mode = tfidf_mode,
-                                     tracker=tracker, profiling_idx=profiling_idx)
+    lshmodel = None
     try:
+        session, lshmodel = init_mongodb(k, maxB, tables, threshold, max_docs, offset, recent_documents=recent_documents,
+                                         multiprocess=multiprocess, num_processes=NUM_PROCESS, dimension_jumps=DIMENSION_JUMPS,
+                                         dimension=dimension, max_thread_delta_time=max_thread_delta_time, tfidf_mode = tfidf_mode,
+                                         tracker=tracker, profiling_idx=profiling_idx)
+
         session.logger.info(json.dumps(parameters, indent=4, sort_keys=True))
 
         #mongodb_url= 'mongodb://{0}:{1}'.format(host, port)
@@ -257,7 +259,7 @@ def mymain(num_tables=4, num_processes=8):
         #m = MongoDBHandler(session, mongodb_url, dbname)
         #session.init_output(m)
 
-        m = TextFileHandler(session)
+        m = TextFileHandler(session.get_temp_folder())
         session.init_output(m)
 
         preformance_file = session.get_temp_folder() + '/../performance.txt'
@@ -279,11 +281,15 @@ def mymain(num_tables=4, num_processes=8):
         file.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\n'.format(max_docs, measured_time, measured_time / 60, strtime, NUM_PROCESS, tables))
         file.close()
 
+        lshmodel.finish()
+
         printInfo(session, lshmodel, measured_time, max_docs-profiling_idx, max_docs)
     except Exception as e:
         raise e
     finally:
-        lshmodel.lsh.finish()
+        if lshmodel is not None:
+            lshmodel.finish()
+
         session.finish()
 
 
@@ -324,4 +330,4 @@ def benchmark():
 if __name__ == '__main__':
 
     #benchmark()
-    mymain(num_tables=1, num_processes=1)
+    mymain(num_tables=8, num_processes=8)

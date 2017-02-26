@@ -106,8 +106,8 @@ def mymain(num_tables=4, num_processes=8):
     if num_tables < num_processes:
         return -1
 
-    k = 3
-    maxB = 10  # should be less than 0.5 of max_docs/(2^k)
+    k = 10
+    maxB = 100  # should be less than 0.5 of max_docs/(2^k)
 
     NUM_PROCESS = num_processes
     multiprocess = NUM_PROCESS>0
@@ -119,7 +119,7 @@ def mymain(num_tables=4, num_processes=8):
     threshold = 0.5
     # %%
     max_threads = 2000
-    max_docs = 5000
+    max_docs = 500000
     recent_documents = 0
     max_thread_delta_time = 3600  # 1 hour delta maximum
 
@@ -324,4 +324,4 @@ def benchmark():
 if __name__ == '__main__':
 
     #benchmark()
-    mymain(num_tables=1, num_processes=1)
+    mymain(num_tables=8, num_processes=8)

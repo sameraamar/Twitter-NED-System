@@ -113,7 +113,9 @@ class Session:
         self.logger = simplelogger()
         self.logger.init(filename=filename, std_level=std_level, file_level=file_level, profiling=profiling)
 
-    def init_output(self, handler):
+    def init_output(self, handler=None):
+        if handler is None:
+            handler = TextFileHandler(self.get_temp_folder())
         self.output = handler
 
     def increment_counter(self):
@@ -196,16 +198,14 @@ class MongoDBHandler:
 class TextFileHandler:
     file_ = None
     counter_ = 0
-    session_ = None
     dumps_ = 0
     filepattern_ = ''
 
-    def __init__(self, session):
-        self.session_ = session
+    def __init__(self, temp_folder):
         self.counter_ = 0
         self.dumps_ = 0
 
-        self.filepattern_ = session.get_temp_folder() + '/thread_{0:07d}.txt'
+        self.filepattern_ = temp_folder + '/threads_{0:07d}.txt'
         filename = self.filepattern_.format(self.dumps_)
         self.file_ = codecs.open(filename, mode='+w', encoding='utf-8')
 

@@ -14,11 +14,13 @@ import time, codecs
 from tweet_threads import TweetThread
 import linalg_helper as la
 from WordVectorModel import TFIDFModel
-
+from thread_manager import MasterClusteringProcess
+import math
 #%%
 
 class NED_LSH_model:
     processed = 0
+    process = None
 
     lsh = None
     tables = 0
@@ -87,6 +89,9 @@ class NED_LSH_model:
         self.last_timestamp = None
         self.max_thread_delta_time = max_thread_delta_time
         self.profiling_idx = profiling_idx
+
+        self.process = MasterClusteringProcess("master", session=self.session)
+        self.process.start()
 
         self.lsh = LSHForest_MP()
         self.lsh.init(session=self.session, dimensionSize=dimension , numberTables=self.tables,
@@ -196,13 +201,12 @@ class NED_LSH_model:
         if self.last_timestamp_tmp==None:
             self.last_timestamp_tmp = self.last_timestamp
 
-
         n = 5000
         if (self.processed > 0) and (self.processed % n == 0):
             page = int(self.processed / n)
 
-            threads_filename = '{0}/threads_{1:03d}.txt'.format(self.session.get_temp_folder(), page)
-            self.session.logger.info('Processed {0}. Output {1}'.format( self.processed , threads_filename))
+            threads_filename = '{0}/threads_GGG_{1:03d}.txt'.format(self.session.get_temp_folder(), page)
+            self.session.logger.info('Processed {0}. Output {1}'.format(self.processed, threads_filename))
             self.dumpThreads(threads_filename, max_threads=2000)
 
 
@@ -219,12 +223,14 @@ class NED_LSH_model:
             if len(todelete)>0:
                 self.session.logger.info('Released {0} clusters'.format(len(todelete)))
 
-            self.session.logger.info("Processed {0} documents (reported in {3}). (AHT: {2:.5f}(s)). Clusters ({4} in {5}). Word vector dimention is {1}".format(
+            self.session.logger.info('Processed {0} documents (reported in {3}). (AHT: {2:.5f}(s)). Queue size {6}). Word vector dimention is {1}'.format(
                                                                                             self.processed,
                                                                                             self.getDimension(),
                                                                                             np.average(self.times),
-                                                                                            ttt, thread_size, len(self.threads_queue)))
-
+                                                                                            ttt,
+                                                                                            thread_size,
+                                                                                            len(self.threads_queue),
+                                                                                            self.process.queueSize()))
             if self.session.tracker_on:
                 self.myprint()
 
@@ -258,7 +264,7 @@ class NED_LSH_model:
             doc = self.word_vector(itemText)
             freq = doc
 
-        doc_point = la.Document(ID, doc)
+        doc_point = la.Document(ID, doc, freq, metadata)
         self.repository[index] = doc_point
         #
         self.processed += 1
@@ -266,24 +272,10 @@ class NED_LSH_model:
         #ID = self.id_list[sample]
         #ID = self.id_list[sample]
         #doc = self.counts[sample, :]
+        self.process.add(doc_point.ID, doc_point)
 
         #self.session.logger.debug('Adding document {0} ({2}) out of {1}'.format(sample, self.counts.shape[0], ID))
-        nearest, nearestDist, comparisons, doc_point = self.lsh.add(doc_point)
-
-
-        object = {
-            '_id': doc_point.ID,
-            'text' : self.text_metadata[doc_point.ID]['text'],
-            'norm': doc_point.norm(),
-            'thread': None,
-            'leader': None,
-            'vector': str(doc_point.v),
-            'LSH-ID': None if nearest==None else nearest.ID ,
-            'LSH-TEXT': None if nearest==None else self.text_metadata[ nearest.ID ]['text'],
-            'LSH-norm': None if nearest==None else nearest.norm(),
-            'LSH-vector': None if nearest==None else str(nearest.v),
-            'LSH-distanse': nearestDist
-        }
+        compare_to, doc_point = self.lsh.add(doc_point)
 
         data = self.text_metadata[ID]
         if self.first_timestamp == None:
@@ -292,106 +284,12 @@ class NED_LSH_model:
         if self.last_timestamp == None or self.last_timestamp < data['timestamp']:
             self.last_timestamp = data['timestamp']
 
-        if nearestDist == None or nearestDist > self.threshold:
-            nearestDist1, nearest1 = self.searchInRecentDocs(doc_point)
-
-            if nearestDist1 != None and (nearestDist == None or nearestDist1 < nearestDist):
-                nearest = nearest1
-                nearestDist = nearestDist1
-
-                object['Recent-ID'] = None if nearest == None else nearest.ID
-                object['Recent-TEXT'] = None if nearest == None else self.text_metadata[nearest.ID]['text']
-                object['Recent-norm'] = None if nearest == None else nearest.norm()
-                object['Recent-distanse'] = nearestDist
-                object['Recent-vector'] = None if nearest == None else str(nearest.v)
-
-        if self.session.output != None:
-            self.session.output.classify_doc(doc_point.ID, object)
-
-        nearestID = None
-        if nearest != None:
-            nearestID = nearest.ID
-
-        create_new_thread = False
-
-        if nearestDist == None or nearestDist > self.threshold:
-            create_new_thread = True
-
-        nearThread = nearThreadID  = None
-        if not create_new_thread:
-            nearThreadID = self.tweet2thread.get(nearestID, None)
-            if nearThreadID == None:
-                wait = True #for easy debug purposes
-            nearThread = self.threads_queue.get(nearThreadID, None)
-
-            if nearThread == None or not nearThread.is_open(): #data['timestamp']):
-                create_new_thread = True
-
-                if nearThread != None:
-                    #if nearThread.size() > 2:
-                    #    nearThread.dump(self.text_metadata)
-
-                    self.threads_queue.pop(nearThreadID)
-                    self.tweet2thread.pop(nearestID)
-
-        """
-        nearThread = nearThreadID  = None
-        if not create_new_thread:
-            nearThreadID = self.tweet2thread[nearestID]
-            nearThread = self.threads_queue.get(nearThreadID, None)
-
-            while nearThread == None or not nearThread.is_open(data['timestamp']):
-                print('enter loop', ID, nearThreadID, nearThread)
-                if nearThread != None:
-                    nearThread.dump(self.text_metadata)
-                if self.threads_queue.get(nearThreadID, None) != None:
-                    self.threads_queue.pop(nearThreadID)
-
-                altr = self.alternatives.get(nearThreadID, None)
-                if altr == None:
-                    self.alternatives[nearThreadID] = ID
-                    create_new_thread = True
-                    break
-                else:
-                    nearThreadID = self.alternatives[nearThreadID]
-                    nearThread = self.threads_queue.get(nearThreadID, None)
-
-                    create_new_thread = False
-        """
-
-
-        if create_new_thread:
-            self.threads[ID] = [ID]
-            self.tweet2thread[ID] = ID
-            self.threads_queue[ID] = TweetThread(self.session, ID, freq, data['user'], data['timestamp'], max_time_delta=self.max_thread_delta_time)
-
-            msg = '*** NEW THREAD ***: new leader is {0} ("{1}"). '.format(ID, self.text_metadata[ID])
-
-
-            if nearestDist != None:
-                msg += '\n\t***Nearest thread leader is {0} with distance {2} (threshold {3}): ("{1}").'.format(nearestID,
-                                                                                       self.text_metadata[nearestID]['text'],
-                                                                                       nearestDist,
-                                                                                       self.threshold)
-            self.session.logger.debug(msg)
 
 
 
-        else:
-            nearThreadID = self.tweet2thread[nearestID]
-            self.threads[nearThreadID].append(ID)
-            self.threads_queue[nearThreadID].append(ID, freq, data['user'], data['timestamp'], nearestID, nearestDist)
-            self.tweet2thread[ID] = nearThreadID
-            self.session.logger.debug(
-                '*** EXISTING THREAD ***: Add document {0} ("{1}") to existing thread {2} ("{3}").\n\t@@@Nearest document is {4} with distance {6}: ("{5}").'.format(
-                    ID, self.text_metadata[ID]['text'], nearThreadID, self.text_metadata[nearThreadID]['text'],
-                    nearestID, self.text_metadata[nearestID]['text'], nearestDist))
-
-        self.session.logger.entry('NED_LSH_model.run.recent-docs')
-        self.recent.append(ID)
-        if len(self.recent) > self.recent_documents:
-            self.recent = self.recent[1:]
-        self.session.logger.exit('NED_LSH_model.run.recent-docs')
+        self.session.logger.entry('add_to_table_4')
+        self.process.match_to_cluster(doc_point.ID, doc_point, compare_to)
+        self.session.logger.exit('add_to_table_4')
 
         self.session.logger.exit("NED_LSH_model._addDocument")
         return index
@@ -423,7 +321,12 @@ class NED_LSH_model:
         self.lsh.myprint()
 
     def dumpThreads(self, filename, max_threads):
+        self.process.printThreads(filename, max_threads)
+
+    def dumpThreads0(self, filename, max_threads):
         # self.session.logger.entry('dumpThreads')
+
+        #self.lsh.dumpThreads
 
         ttt = human_time(seconds=self.last_timestamp - self.first_timestamp)
         thr = 1
@@ -660,3 +563,16 @@ class NED_LSH_model:
         return data
         
 
+    def finish(self):
+        if self.process.finish():
+            n = self.process.queueSize()
+            while n > 1000:
+                d = int(1000 * math.log2(n))
+                if n%d == 0:
+                    print('Queue for process {0} still has {1} requests'.format(self.process.name, n))
+                    time.sleep(0.05)
+                n = self.process.queueSize()
+
+            self.process.finish_response()
+
+        self.lsh.finish()

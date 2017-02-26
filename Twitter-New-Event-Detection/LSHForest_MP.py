@@ -210,6 +210,7 @@ class LSHForest_MP:
     # parameters
     dimSize = 3
     numberTables = 1
+    #id2doc = {}
 
     # data members
     session = None
@@ -220,6 +221,7 @@ class LSHForest_MP:
         self.dimSize = 3
         self.numberTables = 1
         self.session = None
+        #self.id2doc = {}
         self.dimension_jumps = None
         self.num_processes = 1
 
@@ -233,6 +235,7 @@ class LSHForest_MP:
 
         self.num_processes = num_processes
         self.dimension_jumps = dimension_jumps
+        #id2doc = {}
         self.numberTables = numberTables
 
         init_processes(session, self.num_processes, numberTables, (maxBucketSize, dimensionSize, hyperPlanesNumber))

@@ -185,6 +185,8 @@ def close_processes(num_processes):
 
 
 
+
+
 def generateHashCodes_MP(session, point, num_processes):
     session.logger.entry("LSHForest_MP.generateHashCodes_MP")
     for p in range(num_processes):
@@ -203,6 +205,9 @@ def generateHashCodes_MP(session, point, num_processes):
 
     return codes2
 
+
+
+
 class LSHForest_MP:
     """
     LSHForest - set of LSH HashTable.
@@ -216,6 +221,7 @@ class LSHForest_MP:
     session = None
 
     num_processes = 1
+    thr = None
 
     def __init__(self, **kwargs):
         self.dimSize = 3
@@ -224,6 +230,7 @@ class LSHForest_MP:
         self.id2doc = {}
         self.dimension_jumps = None
         self.num_processes = 1
+
 
         return super().__init__(**kwargs)
 
@@ -286,16 +293,16 @@ class LSHForest_MP:
 
         nearest = None
         nearestDist = None
-        comparisons = 0
         #invokes = []
         counter = {}
-        items = {}
 
         #self.id2doc[doc_point.ID] = doc_point
 
         doc_point.v = self.fix_dimension(doc_point.v)
-        self.session.logger.entry('add_to_table')
+        self.session.logger.entry('add_to_table_1')
         neighbors_list = self.add_and_query(doc_point)
+        self.session.logger.exit('add_to_table_1')
+        self.session.logger.entry('add_to_table_2')
         for x in neighbors_list:
             neighbors = neighbors_list[x]
             for candidate in neighbors:
@@ -304,62 +311,32 @@ class LSHForest_MP:
 
                 c = counter.get(candidate, 0)
                 counter[candidate] = c + 1
-                if items.get(candidate, None) == None:
-                    items[candidate] = doc_point
-            self.session.logger.exit('add_to_table')
 
-
-        #self.session.logger.entry('add_to_table_2')
-        #limit = 3 * self.numberTables
-
-        #tmp = nearestDist
-        #for id in sorted(counter, key=counter.get, reverse=True):
-        #    dist = lh.distance(doc_point, items[id]['point'], self.session.logger, auto_fix_dim=True)
-        #    if nearestDist==None or (dist != None and nearestDist>dist):
-        #        nearest = items[id]
-        #        nearestDist = dist
-
-        #    limit -= 1
-        #    if limit == 0:
-        #        break
-        ##print('**** nearest: ', nearestDist)
-        #self.session.logger.exit('add_to_table_2')
-        #nearestDist = tmp
-
-        self.session.logger.entry('add_to_table_3')
         limit = 3 * self.numberTables
         compare_to = sorted(counter, key=counter.get, reverse=True)[0:limit]
-        """
-        part = int(limit / self.num_processes)
-        rem = limit - part*self.num_processes
 
-        split = {}
-        p = 0
-        for p in range(self.num_processes):
-        """
+        self.session.logger.exit('add_to_table_2')
+        nearest = nearestDist = None
 
-        p = 0
+        """
+        self.session.logger.entry('add_to_table_3')
         for id in compare_to:
-            qin[p].put( DISTANCE )
-            qin[p].put ( (id, doc_point, items[id]) )
-            p+=1
-            p=p % self.num_processes
-
-        p = 0
-        for i in range(len(compare_to)):
-            id, dist = qout[p].get()
+            dist = lh.distance(doc_point, self.thr.id2document[id], self.session.logger, auto_fix_dim=True)
             if nearestDist==None or (dist != None and nearestDist>dist):
-                nearest = items[id]
+                nearest = self.thr.id2document[id]
                 nearestDist = dist
-            p+=1
-            p=p % self.num_processes
 
-        #print('nearest: ', nearestDist)
-
+            limit -= 1
+            if limit == 0:
+                break
         self.session.logger.exit('add_to_table_3')
+        """
+        #print('NEAREST3: ', doc_point.ID, nearest, nearestDist)
+
+        #print('NEAREST4: ', doc_point.ID, nearest, nearestDist)
 
         self.session.logger.exit('LSHForest_MP.add')
-        return nearest, nearestDist, comparisons, doc_point
+        return compare_to, doc_point
 
 
     def size(self):

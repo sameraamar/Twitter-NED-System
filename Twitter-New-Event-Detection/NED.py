@@ -332,16 +332,22 @@ class NED_LSH_model:
                 wait = True #for easy debug purposes
             nearThread = self.threads_queue.get(nearThreadID, None)
 
-            if nearThread == None or not nearThread.is_open(): #data['timestamp']):
+            too_old = False
+            is_open = True
+            if nearThread is not None:
+                too_old = nearThread.too_old(self.text_metadata[ doc_point.ID ] ['timestamp'])
+                is_open = nearThread.is_open()
+            if nearThread is None or not is_open or too_old:
                 create_new_thread = True
 
-                if nearThread != None:
-                    #if nearThread.size() > 2:
-                    #    nearThread.dump(self.text_metadata)
+                if nearThread is not None:
+                    if nearThread.size() > 2:
+                        nearThread.dump(self.text_metadata)
 
                     self.threads_queue.pop(nearThreadID)
-                    self.tweet2thread.pop(nearestID)
 
+                    for tmpid in nearThread.idList:
+                        self.tweet2thread.pop(tmpid)
         """
         nearThread = nearThreadID  = None
         if not create_new_thread:

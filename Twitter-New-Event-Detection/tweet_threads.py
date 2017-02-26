@@ -141,6 +141,15 @@ class TweetThread:
         # 1 hour max time
         return self.max_timestamp - self.min_timestamp < self.max_time_delta;
 
+    def too_old(self, ts, strict_mode=True):
+        if strict_mode:
+            compare = self.max_timestamp
+        else:
+            compare = self.min_timestamp
+        d = ts - compare
+
+        return d > self.max_time_delta
+
     def users_count(self):
         return len(self.users)
 

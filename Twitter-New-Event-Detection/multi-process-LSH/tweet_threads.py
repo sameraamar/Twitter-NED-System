@@ -2,9 +2,7 @@ from simplelogger import simplelogger
 from math import log10
 import numpy as np
 from session import human_time
-
-
-
+import json
 
 class TweetThread:
     session = None
@@ -68,7 +66,7 @@ class TweetThread:
 
         self.session.logger.exit('tweet_thread.append')
 
-    def dump(self, text_metadata):
+    def dump(self, output, id2document):
         if self.saved :
             #already saved
             return
@@ -79,21 +77,19 @@ class TweetThread:
         self.saved = True
 
         entr = self.entropy()
-        if entr < 2:
-            #self.session.logger.info('Entropy {0} is too low for thread: {1}'.format(entr, self.thread_id) )
-            return
 
         entries = []
         #msg = list()
         for ID in self.idlist:
             nearID, nearestDist = self.document_contents[ID]
+            data = id2document[ID].metadata
             entry = { 'ID' : ID,
                       'nearest': nearID,
                       'nearestDist': nearestDist,
-                      'text' : text_metadata[ID]['text'],
-                      'user' : text_metadata[ID]['user'],
-                      'timestamp' : text_metadata[ID]['timestamp'],
-                      'created_at': text_metadata[ID]['created_at']}
+                      'text' : data['text'],
+                      'user' : data['user'],
+                      'timestamp' : data['timestamp'],
+                      'created_at': data['created_at']}
             entries.append(entry)
             #msg.append(ID)
         #self.session.logger.info( ', '.join(msg) )
@@ -106,9 +102,11 @@ class TweetThread:
         doc['entropy'] = entr
         doc['period'] = human_time(seconds=self.thread_time())
 
+        output.write_thread( thread_id=self.thread_id, thread_details=doc )
 
-        self.session.output.write_thread( thread_id=self.thread_id, thread_details=doc )
-
+        #text = json.dumps({'id': self.thread_id, 'thread': doc}, indent=4, sort_keys=True)
+        #output.write(text)
+        #output.write('\n')
 
         self.session.logger.exit('tweet_thread.dump')
 
@@ -140,6 +138,15 @@ class TweetThread:
     def is_open(self):
         # 1 hour max time
         return self.max_timestamp - self.min_timestamp < self.max_time_delta;
+
+    def too_old(self, ts, strict_mode=True):
+        if strict_mode:
+            compare = self.max_timestamp
+        else:
+            compare = self.min_timestamp
+        d = ts - compare
+
+        return d > self.max_time_delta
 
     def users_count(self):
         return len(self.users)
