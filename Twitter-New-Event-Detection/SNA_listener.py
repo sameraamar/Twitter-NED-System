@@ -7,6 +7,7 @@ class SNAListener(Listener):
     total = 0
     replies = 0
     retweets = 0
+    errors = 0
     skipped = 0
     graph = None
     max_total = -2
@@ -19,12 +20,22 @@ class SNAListener(Listener):
         self.replies = 0
         self.skipped = 0
         self.retweets = 0
+        self.errors = 0
         self.graph = InteractionGraph()
         self.documents = {}
 
 
     def act(self, data):
         self.session.logger.entry("SNAListener.act")
+
+        if data.get('json', None) is not None:
+            topic = data.get('topic_id', '')
+            data = data['json']
+            data['topic'] = topic
+
+        if data.get('id_str', None) is None:
+            self.errors += 1
+            return True
 
         retweet = (data.get('retweeted_status', None) != None)
         reply = (data.get('in_reply_to_status_id', None) != None)
@@ -48,6 +59,7 @@ class SNAListener(Listener):
 
         metadata['reply'] = reply
         metadata['retweet'] = retweet
+        metadata['topic'] = data['topic']
 
         metadata['user'] = data['user'].get('screen_name', None)
 
@@ -72,14 +84,8 @@ class SNAListener(Listener):
         to_continue = self.max_total<-1 or self.total < self.max_total
         return to_continue
 
-    def print_doc(self, id, output=sys.stdout):
-        data = self.documents.get(id, None)
-
-        if data != None:
-            output.write('{0}: {1}\n'.format(id, data['text']))
-        else:
-            output.write('{0}: N/A\n'.format(id))
-
+    def get_doc(self, id):
+        return self.documents.get(id, None)
 
 class InteractionGraph:
 
@@ -128,25 +134,36 @@ class InteractionGraph:
             self.components[n].add( index2 )
             self.node2component[id2] = n
 
-    def giant_components(self, number):
-        result = []
+    def giant_components(self, number=-1):
 
         for c in sorted(self.components, key=Component.size, reverse=True):
-            result.append(c)
-            if number==0:
-                return result
-            number -= 1
-
-        return []
-
-    def pprint(self, component, print_doc=None, out=sys.stdout):
-        out.write('Component size: {0}:\n'.format(component.size()))
-        for c in component.items:
-            if print_doc != None:
-                print_doc(self.nodes[c], out)
+            if number == -1:
+                yield c
+            elif number == 0:
+                break
             else:
-                out.write(str(c))
-                out.write('\n')
+                yield
+                number -= 1
+
+
+
+    def pprint(self, component, get_doc, out=sys.stdout):
+        out.write('ID\tTopic\tComponent Size\tText\n')
+
+        for c in component.items:
+            id = self.nodes[c]
+            data = get_doc(id)
+
+            topic = text = "N/A"
+            if data is not None:
+                topic = data['topic']
+                text = data['text']
+
+            out.write('{0}\t{1}\t{2}\t{3}\t{4}\n'.format(str(component), id, topic, component.size(), text))
+
+
+
+
 
 
 class Component:

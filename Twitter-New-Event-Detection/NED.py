@@ -6,7 +6,6 @@ Created on Sun Oct 16 12:51:47 2016
 """
 
 from LSHForest_MP import LSHForest_MP
-from LSHForest import LSHForest
 from scipy.sparse import csr_matrix
 import numpy as np
 from simple_twitter_parser import preprocess
@@ -15,11 +14,13 @@ import time, codecs
 from tweet_threads import TweetThread
 import linalg_helper as la
 from WordVectorModel import TFIDFModel
-
+from thread_manager import MasterClusteringProcess
+import math
 #%%
 
 class NED_LSH_model:
     processed = 0
+    clustering_process = None
 
     lsh = None
     tables = 0
@@ -30,20 +31,20 @@ class NED_LSH_model:
     recent_documents = 0
     
     #%%
-    threads_queue = {}
-    threads = {}
-    tweet2thread = {}
-    alternatives = {}
-    text_data = []
-    doc_indices = {}
-    id_list = []
-    text_metadata = {}
+    #Samerthreads_queue = {}
+    #Samerthreads = {}
+    #Samertweet2thread = {}
+    #Sameralternatives = {}
+    #Samertext_data = []
+    #Samerdoc_indices = {}
+    #Samerid_list = []
+    #Samertext_metadata = {}
     first_timestamp = None
     last_timestamp = None
     last_timestamp_tmp = None
     times = []
     max_thread_delta_time = 3600
-    recent = []
+    #Samerrecent = []
 
     multiprocess = False
 
@@ -52,7 +53,7 @@ class NED_LSH_model:
     wordindex_next = 0
 
     #'''
-    repository = {}
+    #Samerrepository = {}
     #count_vect = None
     tfidf = None
     tfidf_mode = True
@@ -62,7 +63,7 @@ class NED_LSH_model:
         return self.lsh.dimSize
 
     def init(self, session, hyper_planes, tables, max_thread_delta_time, max_bucket_size=50,
-             multiprocess=False, num_processes=None, dimension_jumps=5000,
+             num_processes=None, dimension_jumps=5000,
              dimension=3, threshold=0.5,
              recent_documents=0, tfidf_mode=True, profiling_idx=5000):
         self.session = session
@@ -80,27 +81,23 @@ class NED_LSH_model:
         self.id_list = []
         self.text_metadata = {}
         self.threshold = threshold
-        self.threads = {}
-        self.threads_queue = {}
+        #Samerself.threads = {}
+        #Samer.self.threads_queue = {}
         self.alternatives = {}
         self.recent = []
         self.first_timestamp = None
         self.last_timestamp = None
         self.max_thread_delta_time = max_thread_delta_time
         self.profiling_idx = profiling_idx
-        self.multiprocess = multiprocess
 
-        if self.multiprocess:
-            self.lsh = LSHForest_MP()
-            self.lsh.init(session=self.session, dimensionSize=dimension , numberTables=self.tables,
-                          num_processes=num_processes, dimension_jumps=dimension_jumps,
-                          hyperPlanesNumber=self.hyper_planes, maxBucketSize=self.max_bucket_size)
+        self.clustering_process = MasterClusteringProcess("master", session=self.session)
+        self.clustering_process.start(self.session.get_temp_folder())
 
-        else:
-            self.lsh = LSHForest()
-            self.lsh.init(session=self.session, dimensionSize=dimension , numberTables=self.tables,
-                          dimension_jumps=dimension_jumps,
-                          hyperPlanesNumber=self.hyper_planes, maxBucketSize=self.max_bucket_size)
+        self.lsh = LSHForest_MP()
+        self.lsh.init(session=self.session, dimensionSize=dimension , numberTables=self.tables,
+                      num_processes=num_processes, dimension_jumps=dimension_jumps,
+                      hyperPlanesNumber=self.hyper_planes, maxBucketSize=self.max_bucket_size)
+
         self.tfidf = TFIDFModel(initial_dim=dimension)
         self.tfidf_mode = tfidf_mode
 
@@ -112,7 +109,7 @@ class NED_LSH_model:
         self.text_metadata = text_metadata
         self.doc_indices = doc_indices
         self.threads = {}
-        self.threads_queue = {}
+        #Samer.self.threads_queue = {}
         self.tweet2thread = {}
         self.first_timestamp = None
         self.last_timestamp = None
@@ -204,35 +201,38 @@ class NED_LSH_model:
         if self.last_timestamp_tmp==None:
             self.last_timestamp_tmp = self.last_timestamp
 
-
-        n = 5000
-        if (self.processed > 0) and (self.processed % n == 0):
-            page = int(self.processed / n)
-
-            threads_filename = '{0}/threads_{1:03d}.txt'.format(self.session.get_temp_folder(), page)
-            self.session.logger.info('Processed {0}. Output {1}'.format( self.processed , threads_filename))
-            self.dumpThreads(threads_filename, max_threads=2000)
-
+        #n = 5000
+        #if (self.processed > 0) and (self.processed % n == 0):
+        #    page = int(self.processed / n)
+        #
+        #    threads_filename = '{0}/threads_GGG_{1:03d}.txt'.format(self.session.get_temp_folder(), page)
+        #    self.session.logger.info('Processed {0}. Output {1}'.format(self.processed, threads_filename))
+        #    self.dumpThreads(threads_filename, max_threads=2000)
 
         if (self.processed % 1000 == 0) or (self.last_timestamp - self.last_timestamp_tmp > 300):
             ttt = human_time(seconds=self.last_timestamp - self.first_timestamp)
-            thread_size = sum( [self.threads_queue[x].size() for x in self.threads_queue ] )
-            todelete = list()
-            for x in self.threads_queue:
-                if not self.threads_queue[x].is_open():
-                    todelete.append(x)
-            for x in todelete:
-                self.threads_queue.pop(x)
-                self.threads.pop(x)
-            if len(todelete)>0:
-                self.session.logger.info('Released {0} clusters'.format(len(todelete)))
+            #todelete = list()
+            #for x in self.threads_queue:
+            #    if not self.threads_queue[x].is_open():
+            #        todelete.append(x)
+            #for x in todelete:
+            #    self.threads_queue.pop(x)
+            #    self.threads.pop(x)
+            #if len(todelete)>0:
+            #    self.session.logger.info('Released {0} clusters'.format(len(todelete)))
 
-            self.session.logger.info("Processed {0} documents (reported in {3}). (AHT: {2:.5f}(s)). Clusters ({4} in {5}). Word vector dimention is {1}".format(
-                                                                                            self.processed,
-                                                                                            self.getDimension(),
-                                                                                            np.average(self.times),
-                                                                                            ttt, thread_size, len(self.threads_queue)))
+            msg = 'Processed {0} documents (reported in {3}). (AHT: {2:.5f}(s)). Word vector dimention is {1}'
+            msg = msg.format(self.processed,
+                    self.getDimension(),
+                    np.average(self.times),
+                    ttt) #,
+                    #len(self.threads_queue),
+                    #self.clustering_process.queueSize())
 
+            if self.processed % 2000 == 0:
+                msg = '{0} - {1}'.format(msg, self.clustering_process.queueSize())
+
+            self.session.logger.info(msg)
             if self.session.tracker_on:
                 self.myprint()
 
@@ -253,10 +253,12 @@ class NED_LSH_model:
             self.session.logger.exit("NED_LSH_model._addDocument")
             return -1
 
+        self.session.logger.entry('_addDocument1')
+
         self.text_data.append(itemText)
         self.id_list.append(ID)
         index = len(self.text_data) - 1
-        self.text_metadata[ID] = metadata
+        #Samerself.text_metadata[ID] = metadata
         self.doc_indices[ID] = index
 
         if self.tfidf_mode:
@@ -266,317 +268,50 @@ class NED_LSH_model:
             doc = self.word_vector(itemText)
             freq = doc
 
-        doc_point = la.Document(ID, doc)
-        self.repository[index] = doc_point
+        doc_point = la.Document(ID, doc, freq, metadata)
+        #Samerself.repository[index] = doc_point
         #
         self.processed += 1
+
+        self.session.logger.exit('_addDocument1')
+        self.session.logger.entry('_addDocument2')
 
         #ID = self.id_list[sample]
         #ID = self.id_list[sample]
         #doc = self.counts[sample, :]
+        self.clustering_process.add(doc_point.ID, doc_point)
+        self.session.logger.exit('_addDocument2')
+        self.session.logger.entry('_addDocument3')
 
         #self.session.logger.debug('Adding document {0} ({2}) out of {1}'.format(sample, self.counts.shape[0], ID))
-        nearest, nearestDist, comparisons, doc_point = self.lsh.add(doc_point)
+        compare_to, doc_point = self.lsh.add(doc_point)
+        self.session.logger.exit('_addDocument3')
+        self.session.logger.entry('_addDocument4')
 
-
-        object = {
-            '_id': doc_point.ID,
-            'text' : self.text_metadata[doc_point.ID]['text'],
-            'norm': doc_point.norm(),
-            'thread': None,
-            'leader': None,
-            'vector': str(doc_point.v),
-            'LSH-ID': None if nearest==None else nearest.ID ,
-            'LSH-TEXT': None if nearest==None else self.text_metadata[ nearest.ID ]['text'],
-            'LSH-norm': None if nearest==None else nearest.norm(),
-            'LSH-vector': None if nearest==None else str(nearest.v),
-            'LSH-distanse': nearestDist
-        }
-
-        data = self.text_metadata[ID]
+        data = metadata #Samerself.text_metadata[ID]
         if self.first_timestamp == None:
             self.first_timestamp = data['timestamp']
 
         if self.last_timestamp == None or self.last_timestamp < data['timestamp']:
             self.last_timestamp = data['timestamp']
 
-        if nearestDist == None or nearestDist > self.threshold:
-            nearestDist1, nearest1 = self.searchInRecentDocs(doc_point)
-
-            if nearestDist1 != None and (nearestDist == None or nearestDist1 < nearestDist):
-                nearest = nearest1
-                nearestDist = nearestDist1
-
-                object['Recent-ID'] = None if nearest == None else nearest.ID
-                object['Recent-TEXT'] = None if nearest == None else self.text_metadata[nearest.ID]['text']
-                object['Recent-norm'] = None if nearest == None else nearest.norm()
-                object['Recent-distanse'] = nearestDist
-                object['Recent-vector'] = None if nearest == None else str(nearest.v)
-
-        if self.session.output != None:
-            self.session.output.classify_doc(doc_point.ID, object)
-
-        nearestID = None
-        if nearest != None:
-            nearestID = nearest.ID
-
-        create_new_thread = False
-
-        if nearestDist == None or nearestDist > self.threshold:
-            create_new_thread = True
-
-        nearThread = nearThreadID  = None
-        if not create_new_thread:
-            nearThreadID = self.tweet2thread.get(nearestID, None)
-            if nearThreadID == None:
-                wait = True #for easy debug purposes
-            nearThread = self.threads_queue.get(nearThreadID, None)
-
-            too_old = False
-            is_open = True
-            if nearThread is not None:
-                too_old = nearThread.too_old(self.text_metadata[ doc_point.ID ] ['timestamp'])
-                is_open = nearThread.is_open()
-            if nearThread is None or not is_open or too_old:
-                create_new_thread = True
-
-                if nearThread is not None:
-                    if nearThread.size() > 2:
-                        nearThread.dump(self.text_metadata)
-
-                    self.threads_queue.pop(nearThreadID)
-
-                    for tmpid in nearThread.idList:
-                        self.tweet2thread.pop(tmpid)
-        """
-        nearThread = nearThreadID  = None
-        if not create_new_thread:
-            nearThreadID = self.tweet2thread[nearestID]
-            nearThread = self.threads_queue.get(nearThreadID, None)
-
-            while nearThread == None or not nearThread.is_open(data['timestamp']):
-                print('enter loop', ID, nearThreadID, nearThread)
-                if nearThread != None:
-                    nearThread.dump(self.text_metadata)
-                if self.threads_queue.get(nearThreadID, None) != None:
-                    self.threads_queue.pop(nearThreadID)
-
-                altr = self.alternatives.get(nearThreadID, None)
-                if altr == None:
-                    self.alternatives[nearThreadID] = ID
-                    create_new_thread = True
-                    break
-                else:
-                    nearThreadID = self.alternatives[nearThreadID]
-                    nearThread = self.threads_queue.get(nearThreadID, None)
-
-                    create_new_thread = False
-        """
-
-
-        if create_new_thread:
-            self.threads[ID] = [ID]
-            self.tweet2thread[ID] = ID
-            self.threads_queue[ID] = TweetThread(self.session, ID, freq, data['user'], data['timestamp'], max_time_delta=self.max_thread_delta_time)
-
-            msg = '*** NEW THREAD ***: new leader is {0} ("{1}"). '.format(ID, self.text_metadata[ID])
-
-
-            if nearestDist != None:
-                msg += '\n\t***Nearest thread leader is {0} with distance {2} (threshold {3}): ("{1}").'.format(nearestID,
-                                                                                       self.text_metadata[nearestID]['text'],
-                                                                                       nearestDist,
-                                                                                       self.threshold)
-            self.session.logger.debug(msg)
 
 
 
-        else:
-            nearThreadID = self.tweet2thread[nearestID]
-            self.threads[nearThreadID].append(ID)
-            self.threads_queue[nearThreadID].append(ID, freq, data['user'], data['timestamp'], nearestID, nearestDist)
-            self.tweet2thread[ID] = nearThreadID
-            self.session.logger.debug(
-                '*** EXISTING THREAD ***: Add document {0} ("{1}") to existing thread {2} ("{3}").\n\t@@@Nearest document is {4} with distance {6}: ("{5}").'.format(
-                    ID, self.text_metadata[ID]['text'], nearThreadID, self.text_metadata[nearThreadID]['text'],
-                    nearestID, self.text_metadata[nearestID]['text'], nearestDist))
-
-        self.session.logger.entry('NED_LSH_model.run.recent-docs')
-        self.recent.append(ID)
-        if len(self.recent) > self.recent_documents:
-            self.recent = self.recent[1:]
-        self.session.logger.exit('NED_LSH_model.run.recent-docs')
+        self.clustering_process.match_to_cluster(doc_point.ID, doc_point, compare_to)
+        self.session.logger.exit('_addDocument4')
 
         self.session.logger.exit("NED_LSH_model._addDocument")
         return index
-
-    def searchInRecentDocs(self, doc_point):
-        self.session.logger.entry("searchInRecentDocs")
-        nearestDist = None
-        nearest = None
-        # compare d to a fixed number of most recent documents
-        flag = False
-        for other in self.recent:
-            # tmp = la.angular_distance(ID, other, doc, self.counts[self.doc_indices[other], :])
-            other_doc = self.repository[self.doc_indices[other]]
-            tmp = la.distance(doc_point, other_doc, logger=self.session.logger, auto_fix_dim=True)
-            if nearestDist == None or nearestDist > tmp:
-                nearestDist = tmp
-                nearest = {'point' : other_doc}
-                flag = True
-        if flag:  # found a new neighbor
-            self.session.logger.debug(
-                '*** Search in Recent Documents: ***: {0} ("{1}") was found to be close to {2} ("{3}") distance {4}.'.format(
-                    doc_point.ID, nearest['point'].ID, self.text_metadata[doc_point.ID]['text'], self.text_metadata.get(other, ''), tmp))
-
-        self.session.logger.exit("searchInRecentDocs")
-        return nearestDist, nearest
 
     def myprint(self):
         self.session.logger.debug('*******************************************')
         self.lsh.myprint()
 
-    def dumpThreads(self, filename, max_threads):
-        # self.session.logger.entry('dumpThreads')
+    def dumpThreads_obsolete(self, filename, max_threads):
+        #self.clustering_process.printThreads(filename, max_threads)
+        return
 
-        ttt = human_time(seconds=self.last_timestamp - self.first_timestamp)
-        thr = 1
-        firstime = True
-        file = None
-
-        for x in sorted(self.threads_queue, key=lambda x: self.helper_lambda(x), reverse=True):
-            threadSize = self.threads_queue[x].size()
-
-            entropy = self.threads_queue[x].entropy()
-            if entropy < 2:
-                continue
-
-            if firstime:
-                file = codecs.open(filename, 'w', encoding='utf-8')
-                file.write('Collected {1} threads. Printing threads with entropy > 3. total period: {0}\n'.format(
-                    ttt, min(max_threads, len(self.threads_queue))))
-                firstime = False
-
-            # if threadSize<3:
-            #    #not interesting anymore
-            #    break
-
-            self.session.logger.debug('Thread: {0}, size: {1} documents'.format(x, threadSize))
-            text = self.text_metadata[x]['text']  # .replace('\t', ' ')
-            # text = text.encode(encoding='utf-8')
-            ttt = human_time(seconds=self.threads_queue[x].thread_time())
-            isOpen = ''
-            if not self.threads_queue[x].is_open():
-                isOpen = ' [CLOSED]'
-
-            file.write(
-                '\n' + '-' * 40 + ' THREAD {0}{5} - {1} documents score: {2} and {3} users. period of {4}'.format(thr,
-                                                                                                                  threadSize,
-                                                                                                                  entropy,
-                                                                                                                  self.threads_queue[
-                                                                                                                      x].users_count(),
-                                                                                                                  ttt,
-                                                                                                                  isOpen) + '-' * 40 + '\n')
-            file.write('Leader is {0}: "{1}"\n'.format(x, text))
-            file.write(
-                'thread\tleading doc\titem#\titem ID\tuser\ttimestamp\tnearest ID\tdistance\titem text\titem text(original)\n')
-            c = 1
-            for item in self.threads_queue[x].idlist:
-                i = self.doc_indices[item]
-                text1 = self.text_data[i]
-                text2 = self.text_metadata[item]['text']
-                user = self.text_metadata[item]['user']
-                timestamp = self.text_metadata[item]['created_at']
-                nearID = self.threads_queue[x].document_contents[item][0]
-                nearestDist = self.threads_queue[x].document_contents[item][1]
-                file.write(
-                    '{0}\t{1}\t{2}\t{3}\t{4}\t{7}\t{8}\t"{5}"\t"{6}"\t"{9}"\n'.format(thr, x, c, item, user, timestamp,
-                                                                                      text1, text2, nearID,
-                                                                                      nearestDist))
-                c += 1
-            if self.threads_queue[x].is_open():
-                thr += 1
-
-            if thr > max_threads:
-                break
-
-        if file != None:
-            file.close()
-            # self.session.logger.exit('dumpThreads')
-
-    def dumpThreads4(self, filename, max_threads):
-        #self.session.logger.entry('dumpThreads')
-        file = codecs.open(filename, 'w', encoding='utf-8')
-        
-        ttt = human_time( seconds=self.last_timestamp - self.first_timestamp )
-        file.write('Printing {1} threads... total period: {0}\n'.format( ttt, min(max_threads, len(self.threads_queue) ))) 
-        thr = 1
-        for x in sorted(self.threads, key=lambda x: len(self.threads[x]), reverse=True):
-            threadSize = len(self.threads[x])
-            
-            #if threadSize<3:    
-            #    #not interesting anymore
-            #    break
-            self.session.logger.debug('Thread: {0}, size: {1} documents'.format(x, threadSize))
-            text = self.text_metadata[x]['text'] #.replace('\t', ' ')
-            #text = text.encode(encoding='utf-8')
-            file.write('\n' + '-'*40 + ' THREAD {0} - {1} documents score: {2} and {3} users'.format(thr, threadSize, 0, 0) + '-'*40 + '\n')
-            file.write('Leader is {0}: "{1}"\n'.format(x, text))
-            file.write('thread\tleading doc\titem#\titem ID\tuser\titem text\titem text(original)\n')
-            c = 1
-            for item in self.threads[x]:
-                i = self.doc_indices[item]
-                text1 = self.text_data[i]
-                text2 = self.text_metadata[item]['text'] 
-                user = self.text_metadata[item]['user']
-            
-                file.write('{0}\t{1}\t{2}\t{3}\t{4}\t"{5}"\t"{6}"\n'.format( thr, x, c, item, user, text1, text2 ))
-                c+=1
-            thr += 1
-            if thr>max_threads:
-                break
-            
-        file.close()
-        #self.session.logger.exit('dumpThreads')
-       
-    def dumpThreads2(self, filename, max_threads):
-        #self.session.logger.entry('dumpThreads')
-        file = codecs.open(filename, 'w', encoding='utf-8')
-
-        ttt = human_time(seconds=self.last_timestamp - self.first_timestamp)
-        file.write('Printing {1} threads... total period: {0}\n'.format( ttt, min(max_threads, len(self.threads_queue) )))
-        thr = 1
-        for x in sorted(self.threads_queue, key=lambda x: self.threads_queue[x].size(), reverse=True):
-            threadSize = self.threads_queue[x].size()
-            
-            #if threadSize<3:    
-            #    #not interesting anymore
-            #    break
-            
-            self.session.logger.debug('Thread: {0}, size: {1} documents'.format(x, threadSize))
-            text = self.text_metadata[x]['text'] #.replace('\t', ' ')
-            #text = text.encode(encoding='utf-8')
-            ttt = human_time(seconds=self.threads_queue[x].thread_time())
-            file.write('\n' + '-'*40 + ' THREAD {0} - {1} documents entropy: {2} and {3} users. period of {4} seconds'.format(thr, threadSize, self.threads_queue[x].entropy(), self.threads_queue[x].users_count(), ttt) + '-'*40 + '\n')
-            file.write('Leader is {0}: "{1}"\n'.format(x, text))
-            file.write('thread\tleading doc\titem#\titem ID\tuser\tnearest ID\tdistance\titem text\titem text(original)\n')
-            c = 1
-            for item in self.threads_queue[x].idlist:
-                i = self.doc_indices[item]
-                text1 = self.text_data[i]
-                text2 = self.text_metadata[item]['text'] 
-                user = self.text_metadata[item]['user']
-                nearID = self.threads_queue[x].document_contents[item][0]
-                nearestDist = self.threads_queue[x].document_contents[item][1]
-                file.write('{0}\t{1}\t{2}\t{3}\t{7}\t{8}\t{4}\t"{5}"\t"{6}"\n'.format( thr, x, c, item, user, text1, text2, nearID, nearestDist ))
-                c+=1
-            thr += 1
-            if thr>max_threads:
-                break
-            
-        file.close()
-        #self.session.logger.exit('dumpThreads')
-      
     def helper_lambda(self, x):
         return '-'.join( [str(self.threads_queue[x].entropy()) , str(self.threads_queue[x].users_count()) ] )
         #return self.threads_queue[x].entropy()
@@ -674,3 +409,16 @@ class NED_LSH_model:
         return data
         
 
+    def finish(self):
+        if self.clustering_process.finish():
+            n = self.clustering_process.queueSize()
+            while n > 1000:
+                d = int(1000 * math.log2(n))
+                if n%d == 0:
+                    print('Queue for process {0} still has {1} requests'.format(self.clustering_process.name, n))
+                    time.sleep(0.05)
+                n = self.clustering_process.queueSize()
+
+            self.clustering_process.finish_response()
+
+        self.lsh.finish()

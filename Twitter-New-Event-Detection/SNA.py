@@ -4,14 +4,16 @@ from simplelogger import simplelogger
 from pprint import pprint
 from os import path
 from SNA_listener import SNAListener
-
+import sys
+import codecs
 
 if __name__ == '__main__':
     offset = 0
     inputfiles_path = 'C:\\data\\events_db\\petrovic'
-    filenames = ['petrovic_00000000.gz', 'petrovic_00500000.gz', 'petrovic_01000000.gz', 'petrovic_01500000.gz',
-                 'petrovic_02000000.gz',
-                 'petrovic_02500000.gz', 'petrovic_03000000.gz']
+    filenames = ['relevance_judgments_00000000.gz']
+    #filenames = ['petrovic_00000000.gz', 'petrovic_00500000.gz', 'petrovic_01000000.gz', 'petrovic_01500000.gz',
+    #             'petrovic_02000000.gz',
+    #             'petrovic_02500000.gz', 'petrovic_03000000.gz']
 
     session = Session(tracker_on=False)
     folder = session.generate_temp_folder('DB2TXT')
@@ -33,7 +35,13 @@ if __name__ == '__main__':
                                                                                                          listener.replies,
                                                                                                          listener.total  ))
 
-    for c in listener.graph.giant_components(2):
-        listener.graph.pprint(c, print_doc=listener.print_doc)
 
-    print('Done.')
+    output = codecs.open(log_filename, 'w+', encoding="utf-8")
+    count = 0
+    for c in listener.graph.giant_components():
+        listener.graph.pprint(c, get_doc=listener.get_doc, out=output)
+        count+=1
+
+    output.close()
+
+    print('Done: ', count, ' printed')

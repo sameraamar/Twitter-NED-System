@@ -22,7 +22,7 @@ def import_class(cl):
     m = __import__(modulename, globals(), locals(), [classname])
     return getattr(m, classname)
 
-def __initProcess__(name, agentname, session=None):
+def __initProcess__(name, agentname, temp_folder):
     assert (processes.get(name, None) is None)
 
     p = {}
@@ -34,11 +34,7 @@ def __initProcess__(name, agentname, session=None):
 
     processes[name] = p
 
-    temp_folder = None
-    if session is not None:
-        temp_folder = session.get_temp_folder()
-    p['in'].put(INIT)
-    p['in'].put( ( name, agentname, temp_folder) )
+    p['in'].put( (INIT, (name, agentname, temp_folder)) )
 
 
 
@@ -50,21 +46,23 @@ def main_process(qin, qout):
     session = None
 
     while True:
-        cmd = qin.get()
+        cmd, params = qin.get()
         #print('Received command: ', cmd)
         if cmd == INIT:
-            name, agentname, temp_folder_name = qin.get()
+            name, agentname, temp_folder_name = params
 
             session = Session()
             session._temp_folder = temp_folder_name
             log_filename = session.get_temp_folder() + '/log_{0}.log'.format(name)
-            session.init_logger(filename=log_filename, std_level=simplelogger.INFO, file_level=simplelogger.DEBUG, profiling=True)
+            session.init_logger(filename=log_filename, std_level=simplelogger.INFO, file_level=simplelogger.DEBUG, profiling=False)
 
             if session.output is None:
                 session.init_output()
 
             agent = import_class(agentname)(session, qin, qout)
             agent.setname(name)
+
+            qout.put('Started')
 
         elif cmd == EXIT:
             agent.finish()
@@ -74,7 +72,7 @@ def main_process(qin, qout):
             break
 
         else:
-            agent.handleCommand(cmd)
+            agent.handleCommand(cmd, params)
 
 
 class AgentInterface:
@@ -92,7 +90,7 @@ class AgentInterface:
     def setname(self, name):
         self.name = name
 
-    def handleCommand(self, cmd):
+    def handleCommand(self, cmd, params):
         #print("AgentInterface.handleCommand")
         #params
         #print('command', cmd)
@@ -120,18 +118,18 @@ class ServiceInterface:
         self.name = name
         self.session = session
 
-    def start(self):
+    def start(self, tempfolder):
         assert (self.name != None)
-        __initProcess__(self.name, self.agentname, self.session)
+        __initProcess__(self.name, self.agentname, tempfolder)
 
     def _check(self):
         if not processes[self.name]['process'].is_alive():
             raise Exception("I lost my child process: {0}".format(self.name))
 
-    def request(self, value):
+    def request(self, cmd, *params):
         self._check()
 
-        processes[self.name]['in'].put(value)
+        processes[self.name]['in'].put((cmd, params))
 
     def response(self):
         self._check()
@@ -156,33 +154,34 @@ class ServiceInterface:
 # -------------- SAMPLE IMPLEMENTATION --------------------
 #------------ sum list of numbers -------------
 
+
+class AgentSumList(AgentInterface):
+    def handleCommand(self, cmd, params):
+        #print("AgentSumList.handleCommand", cmd, params)
+        if cmd == 5:
+            start, end = params
+            s = 0
+            for i in range(start, end):
+                s+=i
+            self.queueOut.put(s)
+        return
+
+
+
+class ServiceSumList(ServiceInterface):
+    def __init__(self, name):
+        agentname = AgentSumList.__module__ + '.' + AgentSumList.__name__
+        ServiceInterface.__init__(self, name, agentname)
+
+    def sum_request(self, start, end):
+        self.request(5, start, end)
+
+    def sum_response(self):
+        return self.response()
+
+
+
 if __name__ == '__main__':
-
-    class AgentSumList(AgentInterface):
-        def handleCommand(self, cmd):
-            print("AgentSumList.handleCommand")
-            if cmd == 5:
-                start, end = self.queueIn.get()
-                s = 0
-                for i in range(start, end):
-                    s+=i
-                self.queueOut.put(s)
-            return
-
-
-
-    class ServiceSumList(ServiceInterface):
-        def __init__(self, name):
-            agentname = AgentSumList.__module__ + '.' + AgentSumList.__name__
-            ServiceInterface.__init__(self, name, agentname)
-
-        def sum_request(self, start, end):
-            self.request(5)
-            self.request((start, end))
-
-        def sum_response(self):
-            return self.response()
-
 
 
     #service = ServiceInterface("Samer")
@@ -193,18 +192,27 @@ if __name__ == '__main__':
     #print(service.fire_response())
 
     proc = []
-    base = time.time()
     for n in range(10):
         sumList = ServiceSumList("sum" + str(n))
+        sumList.start('c:/temp')
         proc.append(sumList)
+        print('Starting...')
 
-        sumList.start()
-        sumList.sum_request(0, 100000*n)
+    for n in range(10):
+        sumList = proc[n]
+        print(sumList.response())
+
+    x = 1000000
+    base = time.time()
+    for n in range(10):
+        sumList = proc[n]
+        sumList.sum_request(x*n, x*(n+1))
 
     s = 0
+    print('Calculate 1...')
     for p in proc:
         r = p.sum_response()
-        print('temp: ', r)
+        print('\ttemp: ', r)
         s += r
     print('res1:', s)
 
@@ -212,9 +220,13 @@ if __name__ == '__main__':
 
     base = time.time()
     s = 0
+    print('Calculate 2...')
     for n in range(10):
-        for j in range(0, 100000*n):
-            s += j
+        s2 = 0
+        for j in range(x*n, x*(n+1)):
+            s2 += j
+        s += s2
+        print('\ttemp: ', s2)
     print('res2:', s)
     print('time: ', time.time() - base)
 

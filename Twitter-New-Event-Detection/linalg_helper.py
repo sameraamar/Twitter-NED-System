@@ -12,13 +12,17 @@ cache = {}
 
 class Document:
     v = None
+    metadata = None
+    word_counts = None
     ID = None
     _norm = None
     _found = 0
 
-    def __init__(self, ID, vector):
+    def __init__(self, ID, vector, word_counts, metadata):
         self.ID = ID
         self.v = vector
+        self.metadata = metadata
+        self.word_counts = word_counts
         self._norm = None
         self._found = 0
 

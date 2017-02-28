@@ -113,7 +113,9 @@ class Session:
         self.logger = simplelogger()
         self.logger.init(filename=filename, std_level=std_level, file_level=file_level, profiling=profiling)
 
-    def init_output(self, handler):
+    def init_output(self, handler=None):
+        if handler is None:
+            handler = TextFileHandler(self.get_temp_folder())
         self.output = handler
 
     def increment_counter(self):
@@ -195,19 +197,19 @@ class MongoDBHandler:
 
 class TextFileHandler:
     file_ = None
+    filecsv_ = None
     counter_ = 0
-    session_ = None
     dumps_ = 0
     filepattern_ = ''
 
-    def __init__(self, session):
-        self.session_ = session
+    def __init__(self, temp_folder):
         self.counter_ = 0
         self.dumps_ = 0
 
-        self.filepattern_ = session.get_temp_folder() + '/thread_{0:07d}.txt'
+        self.filepattern_ = temp_folder + '/threads_{0:07d}.txt'
         filename = self.filepattern_.format(self.dumps_)
         self.file_ = codecs.open(filename, mode='+w', encoding='utf-8')
+        self.filecsv_ = None
 
         return
 
@@ -234,19 +236,40 @@ class TextFileHandler:
         self.file_.write(text)
         #self.file_.write(text.replace('\n', ' '))
         #self.file_.write('\n')
-        self.file_.write('\n**||**\n')
+        self.file_.write('\n')
+
+        if self.filecsv_ is None:
+            filename = self.filepattern_.replace('{0:07d}.txt', 'all.csv')
+            self.filecsv_ = codecs.open(filename, mode='+w', encoding='utf-8')
+            self.filecsv_.write('lead-id\tleader-text\tentropy\tsize\tusers\tperiod\tfile\n')
+
+        # -----------------CSV
+        thr = '{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n'.format(thread_details['thread_id'] ,
+                                                        thread_details['thread_text'].replace('\n', ' ').replace('\t', ' ') ,
+                                                        thread_details['entropy'] ,
+                                                        thread_details['size'] ,
+                                                        thread_details['users'] ,
+                                                        thread_details['period'] ,
+                                                        self.file_.name
+                                                      )
+
+        self.filecsv_.write(thr)
+        #-----------------CSV(end)
 
         self.counter_ += 1
-        if self.counter_==10:
+        if self.counter_==1000:
             self.file_.close()
             self.counter_ = 0
             self.dumps_ += 1
             filename = self.filepattern_.format(self.dumps_)
             self.file_ = codecs.open(filename, mode='+w', encoding='utf-8')
 
+
     def close(self):
         print('Closing...')
         self.file_.close()
+        if self.filecsv_ is not None:
+            self.filecsv_.close()
         return
 
 
