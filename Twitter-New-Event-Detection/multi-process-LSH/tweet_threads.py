@@ -78,6 +78,9 @@ class TweetThread:
 
         entr = self.entropy()
 
+        if entr < 1.5:
+            return
+
         entries = []
         #msg = list()
         for ID in self.idlist:
@@ -96,10 +99,12 @@ class TweetThread:
 
         doc = {}
         doc['thread_id'] = self.thread_id
-        #doc['thread_text'] = text_metadata[self.thread_id]
+        doc['thread_text'] = id2document[self.thread_id].metadata['text']
 
+        doc['size'] = len(self.idlist)
         doc['list'] = entries
         doc['entropy'] = entr
+        doc['users'] = self.users_count()
         doc['period'] = human_time(seconds=self.thread_time())
 
         output.write_thread( thread_id=self.thread_id, thread_details=doc )
@@ -135,11 +140,14 @@ class TweetThread:
 
         self.session.logger.exit('tweet_thread.append')
 
-    def is_open(self):
+    def can_add(self, new_timestamp):
+        return new_timestamp - self.min_timestamp < self.max_time_delta;
+
+    def is_open2(self):
         # 1 hour max time
         return self.max_timestamp - self.min_timestamp < self.max_time_delta;
 
-    def too_old(self, ts, strict_mode=True):
+    def too_old2(self, ts, strict_mode=False):
         if strict_mode:
             compare = self.max_timestamp
         else:

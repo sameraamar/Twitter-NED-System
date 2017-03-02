@@ -103,17 +103,18 @@ class TextGZipStreameSet(Action):
 
                 self.counter += 1
                 if self.offset > self.counter :
-                    if self.counter % 1000 == 0:
+                    if self.counter % int(0.01 * self.offset) == 0:
                         print('skip {0} to {1}'.format(self.counter, self.offset))
                     continue
 
                 # json
                 data = json.loads(line)
                 # convert to text
-                created_at = data['created_at']
 
-                itemTimestamp = time.mktime(time.strptime(created_at, "%a %b %d %H:%M:%S +0000 %Y"))
-                data['timestamp'] = itemTimestamp
+                created_at = data.get('created_at', None)
+                if created_at is not None:
+                    itemTimestamp = time.mktime(time.strptime(created_at, "%a %b %d %H:%M:%S +0000 %Y"))
+                    data['timestamp'] = itemTimestamp
 
                 # publish to listeners
                 if not self.publish(data):
@@ -174,10 +175,8 @@ class MongoDBStreamer(Action):
                     count += 1
                     lasttime = time.time()
                     data = item.get('json', None)
-                    #if data == None:
-                    #    continue
 
-                    if data != None:
+                    if data is not None:
                         # data = json.loads(data)
                         # convert to text
                         created_at = data['created_at']
@@ -310,10 +309,10 @@ class TwitterTextListener(Listener):
         metadata = {}
         ID = data['id_str']
 
-        metadata['retweet'] = (data.get('retweet', None) != None)
+        metadata['retweet'] = (data.get('retweet', None) is not None)
 
         metadata['user'] = data['user'].get('screen_name', None)
-        if metadata['user'] == None:
+        if metadata['user'] is None:
             metadata['user'] = data['user']['id_str']
 
         metadata['timestamp'] = data['timestamp']

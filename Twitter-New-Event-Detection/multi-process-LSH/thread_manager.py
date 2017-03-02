@@ -1,6 +1,7 @@
 import linalg_helper as lh
 from ProcessManager import AgentInterface, ServiceInterface
 from tweet_threads import TweetThread
+import codecs
 
 MAP_TO_THREAD = 6
 ADD = 8
@@ -171,18 +172,18 @@ class MasterClusteringAgent(AgentInterface):
         AgentInterface.__init__(self, session, queueIn, queueOut)
 
 
-    def handleCommand(self, cmd):
+    def handleCommand(self, cmd, params):
         try:
             if cmd == SETTINGS:
                 #print(self.threshold)
 
-                self.threshold = self.queueIn.get()
+                self.threshold = params
 
                 #print(self.threshold)
 
 
             if cmd == MAP_TO_THREAD:
-                id, point, compare_to = self.queueIn.get()
+                id, point, compare_to = params #self.queueIn.get()
 
                 self.map_to_thread(id, point, compare_to)
                 self.counter += 1
@@ -191,17 +192,16 @@ class MasterClusteringAgent(AgentInterface):
                     self.session.logger.debug('Process {0} has processed {1} items (in queue {2})'.format(self.name, self.counter, self.queueIn.qsize()))
 
             if cmd == EXPIRE:
-                id = self.queueIn.get()
+                id = params
                 self.id2document.pop(id)
 
             if cmd == DUMP_THREADS:
-                filename, max_threads = self.queueIn.get()
+                filename, max_threads = params
                 self.printThreads(filename, max_threads)
 
             if cmd == ADD:
                 #print(self.queueIn)
-                tmp = self.queueIn.get()
-                id, document = tmp
+                id, document = params
                 self.id2document[id] = document
 
 
@@ -237,14 +237,12 @@ class MasterClusteringAgent(AgentInterface):
             leadId = self.id2threadLead.get(min_doc.ID, None)
             nearThread = self.id2thread2.get(leadId, None)
 
-            too_old = False
-            is_open = True
+            can_add = True
 
             if nearThread is not None:
-                too_old = nearThread.too_old(document.metadata['timestamp'])
-                is_open = nearThread.is_open()
+                can_add = nearThread.can_add(document.metadata['timestamp'])
 
-            if nearThread is None or not is_open or too_old:
+            if nearThread is None or not can_add:
                 create_new_thread = True
 
         if create_new_thread:
@@ -278,23 +276,20 @@ class MasterClusteringAgent(AgentInterface):
                     id, mydata['text'], leadId, leaddata['text'],
                     min_doc.ID, min_doc.metadata['text'], min_dist))
 
-
+        self.session.logger.entry("clean-thread-list")
         remove_me = []
         for th_id in self.id2thread2:
             thread = self.id2thread2[th_id]
 
-            too_old = thread.too_old(document.metadata['timestamp'])
-            is_open = thread.is_open()
-
-            if too_old or not is_open:
+            too_old = not thread.can_add(document.metadata['timestamp'])
+            if too_old:
                 thread.dump(self.session.output, self.id2document)
-                self.session.logger.debug("Removing {0}: too old = {1}, size = {2}, is-open = {3}".format(th_id,
-                                                                                                          too_old,
-                                                                                                          thread.size(),
-                                                                                                          is_open))
+                self.session.logger.debug("Removing {0}: too old = {1}, size = {2}".format(th_id,
+                                                                                           too_old,
+                                                                                           thread.size()))
                 remove_me.append(th_id)
 
-            if not too_old:
+            else:
                 break # no need to proceed further in the loop
 
         if len(remove_me)>0:
@@ -304,6 +299,7 @@ class MasterClusteringAgent(AgentInterface):
             thread = self.id2thread2.pop(th_id)
             for tmpid in thread.idlist:
                 self.id2threadLead.pop(tmpid)
+        self.session.logger.exit("clean-thread-list")
 
 
         self.session.logger.exit("map_to_thread")
@@ -431,21 +427,17 @@ class MasterClusteringProcess(ServiceInterface):
         ServiceInterface.__init__(self, name, agentname, session)
 
     def match_to_cluster(self, id, point, compare_to):
-        self.request(MAP_TO_THREAD)
-        self.request((id, point, compare_to))
+        self.request(MAP_TO_THREAD, id, point, compare_to)
 
     def add(self, id, document):
         self.id2document[id] = document
-        self.request(ADD)
-        self.request((id, document))
+        self.request(ADD, id, document)
 
     def remove(self, id):
         self.id2document.pop(id)
-        self.request(EXPIRE )
-        self.request((id) )
+        self.request(EXPIRE, id)
 
     def printThreads(self, filename, max_threads):
-        self.request(DUMP_THREADS)
-        self.request((filename, max_threads))
+        self.request(DUMP_THREADS, filename, max_threads)
 
 

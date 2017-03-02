@@ -77,7 +77,7 @@ def execute(session, lshmodel, offset, max_docs, host, port, db, collection, max
 
     #lshmodel.dumpThreads(threads_filename.replace('.txt', '1.txt'), max_threads)
     #lshmodel.dumpThreads2(threads_filename.replace('.txt', '2.txt'), max_threads)
-    lshmodel.dumpThreads(threads_filename.replace('.txt', '3.txt'), max_threads)
+    #lshmodel.dumpThreads(threads_filename.replace('.txt', '3.txt'), max_threads)
 
     session.logger.exit("main.execute")
 
@@ -106,8 +106,8 @@ def mymain(num_tables=4, num_processes=8):
     if num_tables < num_processes:
         return -1
 
-    k = 10
-    maxB = 100  # should be less than 0.5 of max_docs/(2^k)
+    k = 4
+    maxB = 1000  # should be less than 0.5 of max_docs/(2^k)
 
     NUM_PROCESS = num_processes
     multiprocess = NUM_PROCESS>0
@@ -119,7 +119,8 @@ def mymain(num_tables=4, num_processes=8):
     threshold = 0.5
     # %%
     max_threads = 2000
-    max_docs = 500000
+    max_docs = 50000
+    #max_docs = 1500002
     recent_documents = 0
     max_thread_delta_time = 3600  # 1 hour delta maximum
 
@@ -134,6 +135,15 @@ def mymain(num_tables=4, num_processes=8):
     dbcoll = 'posts'  # 'relevance_judgments'
     #dbname = 'test'
     #dbcoll = 'test'
+
+    min_rounds = 0
+    max_rounds = 10
+    profiling_idx = 0
+    #offset = 14000000
+    offset = 0
+
+    tracker = False
+
 
     folder = 'C:\\data\\events_db\\petrovic'
     filenames = [   'petrovic_00000000.gz',
@@ -197,12 +207,6 @@ def mymain(num_tables=4, num_processes=8):
                     'petrovic_29000000.gz',
                     'petrovic_29500000.gz' ]
 
-    min_rounds = 0
-    max_rounds = 10
-    profiling_idx = 0
-    offset = 0
-
-    tracker = False
 
     lsh = {
         'title': 'LSH parameters',
@@ -245,7 +249,7 @@ def mymain(num_tables=4, num_processes=8):
         min_rounds = int(sys.argv[2])
         max_rounds = int(sys.argv[3])
 
-    lshmodel = None
+    lshmodel = session = None
     try:
         session, lshmodel = init_mongodb(k, maxB, tables, threshold, max_docs, offset, recent_documents=recent_documents,
                                          multiprocess=multiprocess, num_processes=NUM_PROCESS, dimension_jumps=DIMENSION_JUMPS,
@@ -290,7 +294,8 @@ def mymain(num_tables=4, num_processes=8):
         if lshmodel is not None:
             lshmodel.finish()
 
-        session.finish()
+        if session is not None:
+            session.finish()
 
 
     return measured_time
