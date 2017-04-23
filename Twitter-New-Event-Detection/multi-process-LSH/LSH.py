@@ -74,7 +74,10 @@ class HashtableLSH:
             point = sparse.csr_matrix((point.data, point.indices, point.indptr), shape=newshape, copy=False)
             # matrix = matrix[:,:vector.shape[1]]
 
-        m = self.hyperPlanes * point.T
+        try:
+            m = self.hyperPlanes * point.T
+        except Exception as e:
+            raise e
         #txt1 = ''.join(['1' if d >= 0 else '0' for d in m])
 
         m[m > 0] = 1

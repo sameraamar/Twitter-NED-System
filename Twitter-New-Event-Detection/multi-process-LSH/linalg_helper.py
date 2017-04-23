@@ -98,7 +98,7 @@ def cosine_similarity_sklearn(a, b, return_angle=False, auto_fix_dim = False, lo
             a = b
             b = c
         delta = a.shape[1] - b.shape[1]
-        zeros = sparse.lil_matrix((1, delta), dtype=np.float64)
+        zeros = sparse.lil_matrix((1, delta), dtype=np.float16)
         b = hstack((b, zeros))
 
     res = cosine_similarity(a, b)[0][0]
@@ -130,6 +130,9 @@ def distance(a, b, logger, auto_fix_dim = False):
     return dist
 
 def saveMatrix(filename, matrix):
+    if True:
+        return
+
     file = open(filename + '.shape', 'w+')
     file.write( '\n'.join ( [ str(matrix.dtype), str(matrix.shape[0]), str(matrix.shape[1]) ] ) )
     file.close()
@@ -139,6 +142,9 @@ def saveMatrix(filename, matrix):
     del fp
 
 def loadMatrix(filename):
+    if True:
+        return
+
     file = open(filename + '.shape', 'r')
     dtype = file.readline().strip()
     rows = int(file.readline())
@@ -275,7 +281,7 @@ if __name__ == '__main__':
             b = bv.v
 
         delta = a.shape[1] - b.shape[1]
-        zeros = sparse.lil_matrix((1, delta), dtype=np.float64)
+        zeros = sparse.lil_matrix((1, delta), dtype=np.float16)
         b1 = hstack((b, zeros))
 
         basetime = time.time()
@@ -340,23 +346,23 @@ if __name__ == '__main__':
 
     test( 'Test 3(b): ', a, b)
 
-    a = sparse.lil_matrix((1, 3), dtype=np.float64)
+    a = sparse.lil_matrix((1, 3), dtype=np.float16)
     a[0, 0] = 0.9096448781658965
-    b = sparse.lil_matrix((1, 3), dtype=np.float64)
+    b = sparse.lil_matrix((1, 3), dtype=np.float16)
     b[0, 0] = -1.5069740305430366
 
 
     test( 'Test 4: ', a, b)
 
-    a = sparse.lil_matrix((1, 3), dtype=np.float64)
+    a = sparse.lil_matrix((1, 3), dtype=np.float16)
     a[0, 0] = 0.9096448781658965
-    b = sparse.lil_matrix((1, 3), dtype=np.float64)
+    b = sparse.lil_matrix((1, 3), dtype=np.float16)
     b[0, 0] = 8.660254038
     b[0, 1] = 5
 
     test( 'Test 5: ', a, b)
 
-    a = sparse.lil_matrix((1, 10), dtype=np.float64)
+    a = sparse.lil_matrix((1, 10), dtype=np.float16)
     a[0, 0] = 8.660254038
     a[0, 3] = 5
     a[0, 5] = 0.19911282712717281914
@@ -365,7 +371,7 @@ if __name__ == '__main__':
 
     test( 'Test 6: ', a, b)
 
-    a = sparse.lil_matrix((1, 31), dtype=np.float64)
+    a = sparse.lil_matrix((1, 31), dtype=np.float16)
     a[0, 4] = 0.317146009
     a[0, 10] = 0.317146009
     a[0, 24] = 0.951438026
@@ -376,7 +382,7 @@ if __name__ == '__main__':
     a[0, 29] = 0.951438026
     a[0, 30] = 0.951438026
 
-    b = sparse.lil_matrix((1, 31), dtype=np.float64)
+    b = sparse.lil_matrix((1, 31), dtype=np.float16)
     b[0, 0] = 0.417021884
     b[0, 3] = 0.417021884
     b[0, 4] = 0.417021884

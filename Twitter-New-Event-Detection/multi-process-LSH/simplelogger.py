@@ -11,7 +11,7 @@ import sys
 import threading
 import matplotlib.pyplot as plt
 import numpy as np
-
+import time
 
 def scatter_plot_with_correlation_line(x, y, graph_filepath, title):
     '''
@@ -209,11 +209,11 @@ class simplelogger:
 
             i += 1
 
-
     def write(self, handler, levelname, message):
         dt = datetime.now()
+
         text = '{:{dfmt} {tfmt}}'.format(dt, dfmt='%Y-%m-%d', tfmt='%H:%M')
-        text += ' ' + levelname + ': ' + message + '\n'
+        text += '(' + str(time.time()) + ') ' + levelname + ': ' + message + '\n'
         
 
         #if 'c:/temp/0000010_docs_round_00.log' == self.handlers[1].name:

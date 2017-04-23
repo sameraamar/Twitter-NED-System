@@ -102,12 +102,12 @@ def printInfo(session, lshmodel, measured_time, count, max_docs):
     return lshmodel
 
 
-def mymain(num_tables=4, num_processes=8):
+def mymain(num_tables, num_processes, max_docs, offset):
     if num_tables < num_processes:
         return -1
 
-    k = 4
-    maxB = 1000  # should be less than 0.5 of max_docs/(2^k)
+    k = 13
+    maxB = 2000  # should be less than 0.5 of max_docs/(2^k)
 
     NUM_PROCESS = num_processes
     multiprocess = NUM_PROCESS>0
@@ -119,9 +119,9 @@ def mymain(num_tables=4, num_processes=8):
     threshold = 0.5
     # %%
     max_threads = 2000
-    max_docs = 50000
-    #max_docs = 1500002
-    recent_documents = 0
+    #max_docs = 5000
+    #max_docs = 1000003
+    recent_documents = 2000
     max_thread_delta_time = 3600  # 1 hour delta maximum
 
     tfidf_mode = True
@@ -139,8 +139,8 @@ def mymain(num_tables=4, num_processes=8):
     min_rounds = 0
     max_rounds = 10
     profiling_idx = 0
-    #offset = 14000000
-    offset = 0
+    #offset = 9000000
+    #offset = 0
 
     tracker = False
 
@@ -335,4 +335,4 @@ def benchmark():
 if __name__ == '__main__':
 
     #benchmark()
-    mymain(num_tables=8, num_processes=8)
+    mymain(num_tables=60, num_processes=10, max_docs=100000, offset=0)

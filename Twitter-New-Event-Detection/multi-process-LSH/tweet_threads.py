@@ -102,7 +102,7 @@ class TweetThread:
         doc['thread_text'] = id2document[self.thread_id].metadata['text']
 
         doc['size'] = len(self.idlist)
-        doc['list'] = entries
+        doc['entries'] = entries
         doc['entropy'] = entr
         doc['users'] = self.users_count()
         doc['period'] = human_time(seconds=self.thread_time())

@@ -92,7 +92,7 @@ class TFIDFModel:
         self.idf = []
         self.document_count = 0
 
-        self.weight = lil_matrix((1, initial_dim), dtype=np.float64)
+        self.weight = lil_matrix((1, initial_dim), dtype=np.float16)
 
     def addDoc(self, d):
         # split to words, calculate f(w, d)
@@ -103,11 +103,11 @@ class TFIDFModel:
 
         self.document_count += 1
 
-        weight = lil_matrix(f.shape, dtype=np.float64)
+        weight = lil_matrix(f.shape, dtype=np.float16)
         for k in f.nonzero()[1] :
             self.word_appearances[k] = self.word_appearances.get(k, 0) + 1
-            p1 = np.log2(self.document_count + 0.5) / self.word_appearances[k]
-            p2 = np.log2(self.document_count + 1.0)
+            p1 = np.log10(self.document_count + 0.5) / self.word_appearances[k]
+            p2 = np.log10(self.document_count + 1.0)
 
             weight [0, k] = p1 / p2 * f[0, k]
 
@@ -126,7 +126,7 @@ class TFIDFModel:
 
         self.document_count += 1
 
-        tfidf = lil_matrix(word_counts.shape, dtype=np.float64)
+        tfidf = lil_matrix(word_counts.shape, dtype=np.float16)
         for k in word_counts.nonzero() :
             self.word_appearances[k] = self.word_appearances.get(k, 0) + 1
             self.idf[k] = self.document_count / self.word_appearances[k]

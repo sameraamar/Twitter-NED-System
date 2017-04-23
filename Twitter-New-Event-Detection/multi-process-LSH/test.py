@@ -1,35 +1,14 @@
 
+words = ['ggg', 'samer', 'mariam',  'why', 'why', 'mariam', 'samer' , 'mariam']
 
-mylist = {}
+word_counts = {}
+for w in words:
+    word_counts[w] = word_counts.get(w, 0) + 1
 
+temp = sorted(word_counts, key=lambda x: word_counts[x], reverse=True)
 
-import time
-import linalg_helper as la
+print (word_counts)
+print (temp)
 
-for hash in range(10):
-    mylist[hash] = []
-    for n in range(1000):
-        d = la.Document(str(n), [])
-        mylist[hash].append(d)
-
-
-base = time.time()
-for hash in range(10):
-    for n in range(100000):
-        d = la.Document(str(n), [])
-        mylist[hash].append(d)
-        mylist[hash].pop(0)
-
-print(len(mylist), time.time() - base)
-
-base = time.time()
-for hash in range(10):
-    for n in range(100000):
-        d = la.Document(str(n), [])
-        mylist[hash].append(d)
-        mylist[hash] = mylist[hash][1:]
-
-print(len(mylist), time.time() - base)
-
-
-
+text = ' '.join(temp)
+print (text)

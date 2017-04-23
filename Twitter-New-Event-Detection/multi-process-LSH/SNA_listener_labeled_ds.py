@@ -18,19 +18,17 @@ class SNAListener(Listener):
     skipped = 0
     graph = None
     max_total = -2
-    offset = 0
     documents = {}
 
     skipped = {}
 
-    def init(self, max_total=-1, offset=0):
+    def init(self, max_total=-1):
         self.total = 0
         self.max_total = max_total
         self.replies = 0
         self.skipped = 0
         self.retweets = 0
         self.errors = 0
-        self.offset = offset
         self.graph = InteractionGraph()
         self.documents = {}
 
@@ -38,20 +36,28 @@ class SNAListener(Listener):
     def act(self, data):
         self.session.logger.entry("SNAListener.act")
 
-        ID = str(data.get('id_str', None))
+        if data.get('status', None) is None:
+            self.external += 1
+        elif data['status'] == 'Loaded':
+            self.loaded += 1
+        elif data['status'] == 'Error':
+            self.errors += 1
+        else: #if data['status'] == 'New':
+            self.new += 1
+
+        ID = str(data.get('_id', None))
+
+
+        print('ID:\t'+ID)
+        topic = data.get('topic_id', '')
+        data['topic'] = topic
+        status = data.get('status', '')
 
         if data.get('json', None) is not None:
             data = data['json']
 
         if data.get('id_str', None) is None and data['status'] != 'Error':
             raise Exception("unexpected entry: " + str(data))
-
-        self.total += 1
-        if self.offset > self.total:
-            if self.total % int(0.01 * self.offset) == 0:
-                print('skip {0} to {1}'.format(self.total, self.offset))
-            return True
-
 
         text = data.get('text', 'N/A')
         text = text.replace('\t', ' ').replace('\r', '. ').replace('\n', '. ')
@@ -79,6 +85,7 @@ class SNAListener(Listener):
 
         metadata['reply'] = reply
         metadata['retweet'] = retweet
+        metadata['topic'] = topic
 
         user = data.get('user', {'screen_name': None})
         metadata['user'] = user.get('screen_name', None)
@@ -87,24 +94,25 @@ class SNAListener(Listener):
             metadata['user'] = user.get('id_str', None)
 
         metadata['timestamp'] = data.get('timestamp', None)
+        metadata['status'] = status
 
         metadata['text'] = text
 
         # self.session.logger.info(metadata['text'])
-        count = self.total-self.offset
         if self.total % 5000 == 0:
-            self.session.logger.debug('Loaded {} documents, processed {1}'.format(self.total, count))
+            self.session.logger.debug('Loaded {} documents'.format(self.total))
 
+        self.total += 1
         self.documents[ID] = metadata
 
         self.graph.add(ID, to_id)
 
         if self.documents.get(to_id, None) is None:
-            self.documents[to_id] = { 'text' : 'N/A', 'retweet' : False, 'reply' : False}
+            self.documents[to_id] = { 'status' : 'unknown11', 'topic' : topic, 'text' : 'N/A', 'retweet' : False, 'reply' : False}
 
         self.session.logger.exit("SNAListener.act")
 
-        to_continue = self.max_total<-1 or count < self.max_total
+        to_continue = self.max_total<-1 or self.total < self.max_total
         return to_continue
 
     def get_doc(self, id):
@@ -172,61 +180,49 @@ class InteractionGraph:
             elif number == 0:
                 break
             else:
-                yield c
+                yield
                 number -= 1
 
     def pprint(self, component, get_doc, out=sys.stdout, print_header=False):
         if print_header:
-            out.write('#\tID\tComponent Size\ttype\tText\n')
-
-        word_counts = {}
+            out.write('#\tID\tTopic\tComponent Size\tStatus\ttype\tText\n')
 
         for c in component.items:
             id = self.nodes[c]
             data = get_doc(id)
 
+            topic = "Why Empty?!"
             text = "N/A"
+            status = "EXTERNAL"
             type = 'unknown'
             if data is not None:
+                topic = data['topic']
                 text = data['text']
+                status = data['status']
                 if(data['retweet']):
                     type = 'retweet'
                 elif(data['reply']):
                     type = 'reply'
-
+                elif status == 'Error':
+                    type = 'Error'
+                elif status == 'Loaded':
+                    type = 'original'
 
             text = text.replace('\n', ' ').replace('\r', ' ').replace('\t', ' ')
-
-            words = text.lower().split()
-            for w in words:
-                word_counts[w] = word_counts.get(w, 0) + 1
-
-            out.write('{0}\t{1}\t{2}\t{3}\t{4}\n'.format(str(component), id, component.size(), type, text))
-
-    def write_component_header(self, component, out):
-        word_counts = {}
-        text = sorted(word_counts, key=lambda x: word_counts[x], reverse=True)
-        text = ' '.join( text )
-        out.write('{0}\t{1}\t{2}\t{3}\t{4}\n'.format(str(component), '', component.size(), '', text))
+            out.write('{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t{6}\n'.format(str(component), id, topic, component.size(), status, type, text))
 
 
-    def pprint_edges(self, out=sys.stdout, print_header=False):
-        if print_header:
-            out.write('#\tID\tComponent Size\ttype\tText\n')
-
-        for i1, i2 in self.edges:
-            out.write('{0}\t{1}\ttype\n'.format( self.nodes[i1] , self.nodes[i2] ))
-
-
-    def print_graph(self, get_doc, folder='./'):
+    def print_graph(self, get_doc):
 
         G = nx.DiGraph()
 
         for n in self.nodes:
             c = self.node2component[n]
             data = get_doc(n)
-
-            G.add_node(n, {'group' : c} )
+            topic = -1
+            if data is not None:
+                topic = data['topic']
+            G.add_node(n, {'group' : c, 'topic' : topic} )
 
         for e in self.edges:
             G.add_edge( self.nodes[ e[0] ], self.nodes[ e[1] ])
@@ -234,7 +230,7 @@ class InteractionGraph:
         pos = nx.random_layout(G)
         nx.draw_networkx(G, pos, with_labels=False)
 
-        nx.write_gexf(G, folder+'/interactions.gexf')
+        nx.write_gexf(G, "c:/temp/interactions.gexf")
         #plt.show()
 
 

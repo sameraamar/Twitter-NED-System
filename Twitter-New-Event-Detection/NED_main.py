@@ -119,7 +119,7 @@ def mymain(num_tables=4, num_processes=8):
     threshold = 0.5
     # %%
     max_threads = 2000
-    max_docs = 500000
+    max_docs = 5000
     recent_documents = 0
     max_thread_delta_time = 3600  # 1 hour delta maximum
 

@@ -195,7 +195,7 @@ class MongoDBStreamer(Action):
                                                                                                      maxDelta)
                                 self.session.logger.error(text)
                         if count % 500 == 0:
-                            self.session.logger.fine('Cursor index {0}. Processed successfully {1}'.format(count, self.session.processed_))
+                            self.session.logger.debug('Cursor index {0}. Processed successfully {1}'.format(count, self.session.processed_))
 
                         previous = data
                     #end if

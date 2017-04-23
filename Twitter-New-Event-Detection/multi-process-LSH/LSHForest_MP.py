@@ -12,7 +12,8 @@ import linalg_helper as lh
 from simplelogger import simplelogger
 from session import human_time
 import numpy as np
-from LSHForest import LSHForest
+#from LSHForest import LSHForest
+from LSH import HashtableLSH
 
 EXIT = 0
 INIT = 1
@@ -28,9 +29,9 @@ qout = []
 subprocesses = []
 
 def main_process(qin, qout):
-    #tables = []
+    tables = []
     session = None
-    lashForest = LSHForest()
+    #lashForest = LSHForest()
 
     while True:
         cmd = qin.get()
@@ -59,36 +60,42 @@ def main_process(qin, qout):
             numberTables = qin.get()
             maxBucketSize, dimensionSize, hyperPlanesNumber = qin.get()
 
-            lashForest.init(session=session, dimensionSize=dimensionSize , numberTables=numberTables,
-                          #dimension_jumps=dimension_jumps,
-                          hyperPlanesNumber=hyperPlanesNumber, maxBucketSize=maxBucketSize)
+            #lashForest.init(session=session, dimensionSize=dimensionSize , numberTables=numberTables,
+            #              #dimension_jumps=dimension_jumps,
+            #              hyperPlanesNumber=hyperPlanesNumber, maxBucketSize=maxBucketSize)
 
-            #tables = [HashtableLSH(session, maxBucketSize, dimensionSize, hyperPlanesNumber) for i in range(numberTables)]
+            tables = [HashtableLSH(session, maxBucketSize, dimensionSize, hyperPlanesNumber) for i in range(numberTables)]
             #print('Tables: ', len(tables))
 
             qout.put('init done')
 
         if cmd == FIX_DIM:
             new_dim = qin.get()
-            #for t in tables:
-            #    t.fix_dimension(new_dim)
+            for t in tables:
+                t.fix_dimension(new_dim)
 
             qout.put('done')
 
         if cmd == ADD_DOC_AND_QUERY:
-            #ID = qin.get()
-            #if ID == '':
-            #    print('Tables: ', len(tables))
             point_vec = qin.get()
-            #tmp = {}
-            #for t in tables:
-            #    item = t.add(ID, point_vec)
-            #    neighbors = t.query(item)
-            #    tmp[t.unique_id] = neighbors
+            ID = point_vec.ID
+            if ID == '':
+                print('Tables: ', len(tables))
+            #point_vec = qin.get()
 
-            nearest, nearestDist, comparisons, doc_point = lashForest.add(point_vec)
+            tmp = {}
 
-            qout.put([nearest])
+            #-----------
+            for t in tables:
+                item = t.add(ID, point_vec.v)
+                neighbors = t.query(item)
+                tmp[t.unique_id] = neighbors
+            #-----------
+
+            #nearest, nearestDist, comparisons, doc_point = lashForest.add(point_vec)
+            #qout.put([nearest])
+
+            qout.put(tmp)
 
 
         ##print('multi-proc: finished')
@@ -226,7 +233,7 @@ class LSHForest_MP:
     # parameters
     dimSize = 3
     numberTables = 1
-    id2doc = {}
+    #id2doc = {}
 
     # data members
     session = None
@@ -238,7 +245,7 @@ class LSHForest_MP:
         self.dimSize = 3
         self.numberTables = 1
         self.session = None
-        self.id2doc = {}
+        #self.id2doc = {}
         self.dimension_jumps = None
         self.num_processes = 1
 
@@ -253,7 +260,7 @@ class LSHForest_MP:
 
         self.num_processes = num_processes
         self.dimension_jumps = dimension_jumps
-        id2doc = {}
+        #self.id2doc = {}
         self.numberTables = numberTables
 
         init_processes(session, self.num_processes, numberTables, (maxBucketSize, dimensionSize, hyperPlanesNumber))
